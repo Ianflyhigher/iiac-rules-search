@@ -1,6 +1,6 @@
 """raw/ 의 HWP/HWPX/ZIP 파일을 읽어 site/data/ 에 검색용 JSON을 만든다.
 
-    pip install pyhwp six lxml pypdf
+    pip install pyhwp six lxml pypdf pdfplumber
     python scripts/build.py
 """
 import io
@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from lxml import etree, html as lhtml
 
@@ -206,6 +208,15 @@ def expand(name, data):
 
 
 def safe_blocks(name, data):
+    if name.lower().endswith(".pdf"):
+        try:
+            import approval_table
+            if approval_table.is_approval_pdf(data):
+                secs = approval_table.parse(data)
+                if secs:
+                    return {"approval": secs}
+        except Exception as e:  # noqa: BLE001
+            print(f"  ! 전결표 변환 실패 {name}: {e}", file=sys.stderr)
     try:
         return doc_blocks(name, data)
     except Exception as e:  # noqa: BLE001
@@ -288,7 +299,8 @@ def sectionize(blocks):
 def block_text(b):
     if "p" in b:
         return b["p"]
-    return "\n".join(" | ".join(c["t"] for c in row) for row in b["table"])
+    return "\n".join(" | ".join(c["t"] for c in row) for row in b["table"]
+                     if not all(c.get("h") for c in row))
 
 
 def main():
@@ -308,6 +320,14 @@ def main():
             blocks = []
         secs = sectionize(blocks)
         for name, ab in attachments:
+            if isinstance(ab, dict) and "approval" in ab:
+                stem = os.path.splitext(name)[0]
+                for unit, rows in ab["approval"]:
+                    secs.append({"label": "전결", "heading": unit, "kind": "attach", "chapter": stem,
+                                 "blocks": [{"table": [[{"t": "세부업무", "h": 1}, {"t": "전결권자", "h": 1}]] +
+                                             [[{"t": a}, {"t": w}] for a, w in rows]}],
+                                 "id": f"s{len(secs)}"})
+                continue
             if ab:
                 stem = os.path.splitext(name)[0]
                 secs.append({"label": "첨부", "heading": stem, "kind": "attach", "chapter": "",

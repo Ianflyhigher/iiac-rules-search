@@ -166,7 +166,7 @@
       if (m) return `<p><strong>${highlight(m[1], res)}</strong>${highlight(b.p.slice(m[1].length), res)}</p>`;
       return `<p>${highlight(b.p, res)}</p>`;
     }
-    return `<div class="tw"><table>${b.table.map((row) => `<tr>${row.map((c) => `<td${c.c ? ` colspan="${c.c}"` : ""}${c.r ? ` rowspan="${c.r}"` : ""}>${highlight(c.t, res)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+    return `<div class="tw"><table>${b.table.map((row) => `<tr>${row.map((c) => `<${c.h ? "th" : "td"}${c.c ? ` colspan="${c.c}"` : ""}${c.r ? ` rowspan="${c.r}"` : ""}>${highlight(c.t, res)}</${c.h ? "th" : "td"}>`).join("")}</tr>`).join("")}</table></div>`;
   }
 
   async function renderRule(id, sid, params) {
