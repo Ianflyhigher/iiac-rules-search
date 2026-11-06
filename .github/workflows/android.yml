@@ -33,8 +33,9 @@ jobs:
           set -o pipefail
           if ! gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log; then
             # 로그를 못 보는 경우를 위해 핵심 오류를 주석(annotation)으로 남긴다
-            msg=$( { sed -n '/What went wrong/,/^\* Try/p' build.log; grep -E "error:|ERROR:|AAPT|Lint found" build.log; } | grep -v "^> Task" | head -60 | sed ':a;N;$!ba;s/\n/%0A/g')
-            echo "::error title=빌드 실패::${msg}"
+            set +e +o pipefail
+            grep -nE "What went wrong|error:|ERROR|AAPT|Lint found|Could not|failed" build.log | grep -v "> Task" | head -8 | while IFS= read -r l; do echo "::error::${l}"; done
+            echo "::error title=로그 끝::$(tail -25 build.log | sed ':a;N;$!ba;s/\n/%0A/g')"
             exit 1
           fi
         env:
