@@ -1,5 +1,5 @@
 // 네트워크 우선, 오프라인이면 캐시
-const CACHE = "rules-v1";
+const CACHE = "rules-v2";
 self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (e) => {

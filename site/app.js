@@ -71,7 +71,7 @@
   }
 
   // ---------- 화면 ----------
-  function setTitle(t) { document.title = t ? `${t} · 사규 검색` : "사규 검색"; }
+  function setTitle(t) { document.title = t ? `${t} · 인천국제공항공사 사규검색` : "인천국제공항공사 사규검색"; }
   const ruleMeta = (r) => `${r.category ? `<span class="badge">${esc(r.category)}</span>` : ""}개정 ${esc(r.enacted || "-")}`;
 
   function getRecent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } }
