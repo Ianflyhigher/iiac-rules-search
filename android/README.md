@@ -7,3 +7,5 @@
 * 받기: https://github.com/Ianflyhigher/iiac-rules-search/releases/latest/download/sagyu.apk
 * 서명키는 저장소에 없습니다. 저장소 Secrets `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD` 로 넣습니다.
   원본 키는 관리자 PC에 따로 보관하세요. 키가 바뀌면 기존 앱을 지우고 새로 설치해야 합니다.
+
+서명키는 GitHub Secrets(ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD)에서 받아 온다.
