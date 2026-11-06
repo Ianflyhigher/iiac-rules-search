@@ -1,7 +1,8 @@
 site/data/
 __pycache__/
 *.log
-push.log
-collect.log
-collect_run.log
-raw_bundle.zip
+android/.gradle/
+android/build/
+android/app/build/
+*.keystore
+*.p12

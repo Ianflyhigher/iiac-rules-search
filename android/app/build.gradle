@@ -1,0 +1,37 @@
+plugins { id "com.android.application" }
+
+android {
+    namespace "io.github.ianflyhigher.sagyu"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "io.github.ianflyhigher.sagyu"
+        minSdk 24
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+        versionName "1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        release {
+            // 서명키는 저장소에 두지 않고 GitHub Secrets 에서 받아 온다
+            storeFile file(System.getenv("KEYSTORE_PATH") ?: "release.p12")
+            storeType "pkcs12"
+            storePassword System.getenv("KEYSTORE_PASSWORD")
+            keyAlias "sagyu"
+            keyPassword System.getenv("KEYSTORE_PASSWORD")
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
