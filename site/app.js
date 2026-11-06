@@ -72,7 +72,7 @@
 
   // ---------- 화면 ----------
   function setTitle(t) { document.title = t ? `${t} · 인천국제공항공사 사규검색` : "인천국제공항공사 사규검색"; }
-  const ruleMeta = (r) => `${r.category ? `<span class="badge">${esc(r.category)}</span>` : ""}개정 ${esc(r.enacted || "-")}`;
+  const ruleMeta = (r) => `${r.category && r.category !== "기타" ? `<span class="badge">${esc(r.category)}</span>` : ""}개정 ${esc(r.enacted || "-")}`;
 
   function getRecent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } }
   function addRecent(q) {
@@ -87,7 +87,7 @@
     qInput.value = "";
     const sort = params.get("sort") || "recent";
     const cat = params.get("cat") || "";
-    const cats = [...new Set(DB.rules.map((r) => r.category).filter(Boolean))].sort();
+    const cats = [...new Set(DB.rules.map((r) => r.category).filter((c) => c && c !== "기타"))].sort();
     let rules = DB.rules.filter((r) => !cat || r.category === cat);
     rules = rules.slice().sort(sort === "name"
       ? (a, b) => a.title.localeCompare(b.title, "ko")
