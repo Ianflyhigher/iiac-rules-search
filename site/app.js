@@ -280,9 +280,8 @@
     const dl = `https://www.alio.go.kr/download/rulefiledown.json?fileNo=${d.fileNo}`;
     view.innerHTML = `
       <div class="dhead">
-        <h2>${esc(d.title)}</h2>
+        <div class="trow"><h2>${esc(d.title)}</h2><a class="btn sm back" id="backBtn" href="${q ? `#/s?q=${encodeURIComponent(q)}` : "#/"}">뒤로가기</a></div>
         <div class="meta">${ruleMeta(meta)}${d.effective ? ` · 시행 ${esc(d.effective)}` : ""}</div>
-        ${q ? `<div class="links"><a class="btn sm" href="#/s?q=${encodeURIComponent(q)}">← 검색 결과</a></div>` : ""}
         ${refs.length ? `<div class="label rl">이 사규가 인용하는 사규</div><div class="chips sm">${refs.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
         ${refBy.length ? `<div class="label rl">이 사규를 인용하는 사규</div><div class="chips sm">${refBy.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
       </div>
@@ -296,6 +295,8 @@
       ${d.attachments.length ? `<div class="note fnote">함께 올라온 파일: ${d.attachments.map(esc).join(", ")} (원문 파일에 포함)</div>` : ""}`;
     setupFind(id, d, q);
     fitTables();
+    const bb = $("#backBtn");
+    if (bb && history.length > 1) bb.addEventListener("click", (e) => { e.preventDefault(); history.back(); });
     if (sid) {
       const el = document.getElementById(sid);
       if (el) { requestAnimationFrame(() => { el.scrollIntoView({ block: "start" }); el.classList.add("target"); }); }
