@@ -52,11 +52,12 @@
   }
 
   let ROWS = [];
+  let HAY = "";
   function build(db) {
     ROWS = [];
     const rule = db.rules.find((r) => r.title === "위임전결규정") || db.rules.find((r) => r.secs.some((s) => s[1] === "전결"));
     if (!rule) return 0;
-    for (const [sid, label, heading, text] of rule.secs) {
+    for (const [sid, label, heading, text, cat] of rule.secs) {
       if (label !== "전결") continue;
       const unit = heading.replace(/^\d+\.\s*/, "");
       for (const line of text.split("\n")) {
@@ -65,9 +66,10 @@
         const detail = line.slice(0, i).trim(), who = line.slice(i + 1).trim();
         if (!who) continue;
         const ex = (unit.match(/\(([^)]*제외[^)]*)\)/) || [])[1] || "";
-        ROWS.push({ idx: ROWS.length, ruleId: rule.id, sid, unit, detail, who, nu: norm(unit.replace(/\([^)]*제외[^)]*\)/, "")), nd: norm(detail), nex: norm(ex) });
+        ROWS.push({ idx: ROWS.length, ruleId: rule.id, sid, unit, cat: cat || "", detail, who, nu: norm(unit.replace(/\([^)]*제외[^)]*\)/, "")), nd: norm(detail), nex: norm(ex) });
       }
     }
+    HAY = ROWS.map((r) => r.nu + " " + r.nd).join(" ");
     return ROWS.length;
   }
 
@@ -79,7 +81,7 @@
     for (const w of INTENT) if (s.includes(w)) { intent = true; s = s.split(w).join(" "); }
     const roles = [], terms = [];
     for (let w of s.split(/\s+/).filter(Boolean)) {
-      w = strip(w);
+      if (!HAY.includes(w)) w = strip(w);
       if (!w || STOP.has(w)) continue;
       const role = ROLES.find((r) => w === r[0] || (w.startsWith(r[0]) && w.length <= r[0].length + 1));
       if (role) { roles.push(role); continue; }
@@ -164,8 +166,8 @@
     const byKey = new Map();
     for (const r of scored) {
       let u = byKey.get(r.sid);
-      if (!u) { u = { sid: r.sid, ruleId: r.ruleId, unit: r.unit, score: r.score, rows: [], why: new Set(), excluded: new Set(), roleHit: false }; byKey.set(r.sid, u); units.push(u); }
-      if (u.rows.length < 6) u.rows.push(r);
+      if (!u) { u = { sid: r.sid, ruleId: r.ruleId, unit: r.unit, cat: r.cat, score: r.score, rows: [], why: new Set(), excluded: new Set(), roleHit: false }; byKey.set(r.sid, u); units.push(u); }
+      if (u.rows.length < 10) u.rows.push(r);
       r.why.forEach((w) => u.why.add(w));
       r.excluded.forEach((w) => u.excluded.add(w));
     }

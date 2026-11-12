@@ -100,15 +100,17 @@
     const rows = u0.rows.slice().sort((a, b) => isRole(b) - isRole(a) || a.idx - b.idx);
     const why = [...u0.why].map((w) => w.includes("→") ? `‘${w.split("→")[0]}’ ≈ ‘${w.split("→")[1]}’` : w.endsWith("(유사)") ? `‘${w.replace("(유사)", "")}’ 비슷` : `‘${w}’ 일치`);
     const notes = [];
-    if (rows.some((x) => /\d[\d,]*\s*(억|천만|백만|만)?\s*원/.test(x.detail))) notes.push("금액 구간에 따라 전결권자가 달라요. 해당 금액 줄을 보세요.");
+    if (rows.some((x) => /\d[\d,]*\s*(억|천만|백만|만)?\s*원/.test(x.detail))) notes.push("금액 구간에 따라 전결권자가 달라요. 금액은 부가세를 뺀 금액이에요 (별표 안내).");
+    if (rows.some((x) => x.who.startsWith("본부장/단장"))) notes.push("본부장/단장 전결사항이라도 사장·부사장 직속부서는 처/실장 전결이고, 중요사항은 그 직상위자로 올려 처리해요 (별표 안내).");
     if (rows.some((x) => /중요|일반/.test(x.detail))) notes.push(`중요사항은 공사의 권리의무를 정하거나 경영상 중대한 영향을 미치는 사항, 일반사항은 정해진 절차·범위대로 시행하거나 권리의무를 수반하지 않는 사항이에요 (${art(3)}).`);
     if (!roleKeys.length && rows.filter((x) => /팀원|팀장|처장|본부장|부사장/.test(x.detail)).length > 1) notes.push("직급에 따라 달라요. 본인(기안자) 직급 줄을 보세요.");
     if (u0.excluded.size) notes.push(`이 업무 제목에는 ‘${[...u0.excluded].join(", ")}’을(를) 제외한다고 적혀 있어요.`);
     const link = (u) => `#/r/${u.ruleId}/${u.sid}`;
     const alts = r.units.slice(1, 4);
-    const head = conf === 2 ? `별표의 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a> 항목이에요.`
-      : conf === 1 ? `별표에 그대로 있지는 않지만 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a>에 해당하는 것으로 판단돼요.`
-      : `딱 맞는 항목은 없어요. 가장 비슷한 것은 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a>이고, ${art(4)} ③에 따라 이 전결사항에 준해 판단할 수 있어요.`;
+    const cat = (u) => u.cat ? ` <span class="cat">${esc(u.cat)}</span>` : "";
+    const head = conf === 2 ? `별표의 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a>${cat(u0)} 항목이에요.`
+      : conf === 1 ? `별표에 그대로 있지는 않지만 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a>${cat(u0)}에 해당하는 것으로 판단돼요.`
+      : `딱 맞는 항목은 없어요. 가장 비슷한 것은 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a>${cat(u0)}이고, ${art(4)} ③에 따라 이 전결사항에 준해 판단할 수 있어요.`;
     return `<div class="card jg">
       <div class="jg-h">전결권자 판단 <small>위임전결규정 별표 기준</small></div>
       <div class="jg-best">${head}</div>
@@ -117,7 +119,7 @@
       ${why.length ? `<div class="jg-why">판단 근거: ${esc(why.join(", "))}</div>` : ""}
       ${notes.map((n) => `<div class="jg-why">※ ${n}</div>`).join("")}
       ${alts.length ? `<div class="jg-alt">다만 이런 전결사항일 수도 있어요. 실제 업무에 맞는지 판단해 보세요.</div>
-      <div class="jg-alts">${alts.map((u, i) => `<a class="jg-altbox" href="${link(u)}"><span class="no">${i + 1}</span><span class="t">${esc(u.unit)}</span><span class="d">${esc(u.rows[0].detail)}</span><span class="w">전결권자 <b>${esc(u.rows[0].who)}</b></span></a>`).join("")}</div>` : ""}
+      <div class="jg-alts">${alts.map((u, i) => `<a class="jg-altbox" href="${link(u)}"><span class="no">${i + 1}</span><span class="t">${esc(u.unit)}${u.cat ? ` <small>${esc(u.cat)}</small>` : ""}</span><span class="d">${esc(u.rows[0].detail)}</span><span class="w">전결권자 <b>${esc(u.rows[0].who)}</b></span></a>`).join("")}</div>` : ""}
       ${conf < 2 ? rule43 : ""}
     </div>`;
   }

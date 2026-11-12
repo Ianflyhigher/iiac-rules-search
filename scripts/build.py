@@ -224,6 +224,45 @@ def safe_blocks(name, data):
         return None
 
 
+OVR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "overrides")
+
+
+def apply_override(rule, attachments):
+    """overrides/approval.json 에 엑셀 원본이 있으면 PDF 해석 대신 쓴다 (같은 별표 파일일 때만)."""
+    try:
+        with open(os.path.join(OVR, "approval.json"), encoding="utf-8") as f:
+            cfg = json.load(f).get(rule["id"])
+    except FileNotFoundError:
+        return attachments
+    if not cfg:
+        return attachments
+    nos = {e.get("fileNo") for e in rule.get("extras", [])} | {rule.get("fileNo")}
+    if cfg["fileNo"] not in nos:
+        print(f"  ! {rule['title']}: 별표 파일이 바뀌어(엑셀 원본 {cfg['fileNo']}) PDF 해석을 씁니다", file=sys.stderr)
+        return attachments
+    try:
+        import approval_xlsx
+        with open(os.path.join(OVR, cfg["xlsx"]), "rb") as f:
+            data = f.read()
+        secs = approval_xlsx.parse(data)
+        notes = approval_xlsx.notes(data)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ! 엑셀 별표 변환 실패 {cfg['xlsx']}: {e}", file=sys.stderr)
+        return attachments
+    if not secs:
+        return attachments
+    out, done = [], False
+    for name, ab in attachments:
+        if isinstance(ab, dict) and "approval" in ab and not done:
+            ab = {"approval": secs, "notes": notes}
+            done = True
+        out.append((name, ab))
+    if not done:
+        out.append((os.path.splitext(cfg["xlsx"])[0], {"approval": secs, "notes": notes}))
+    print(f"  {rule['title']}: 별표를 엑셀 원본으로 대체 ({sum(len(x[1]) for x in secs)}줄)")
+    return out
+
+
 def load_rule(rule):
     """(본문 블록, [(첨부 이름, 첨부 블록 또는 None)])"""
     with open(os.path.join(RAW, rule["file"]), "rb") as f:
@@ -319,11 +358,17 @@ def main():
             failed.append(r["title"])
             blocks = []
         secs = sectionize(blocks)
+        attachments = apply_override(r, attachments)
         for name, ab in attachments:
             if isinstance(ab, dict) and "approval" in ab:
                 stem = os.path.splitext(name)[0]
-                for unit, rows in ab["approval"]:
-                    secs.append({"label": "전결", "heading": unit, "kind": "attach", "chapter": stem,
+                if ab.get("notes"):
+                    secs.append({"label": "별표", "heading": "별표 안내", "kind": "attach", "chapter": stem,
+                                 "blocks": [{"p": n} for n in ab["notes"]], "id": f"s{len(secs)}"})
+                for item in ab["approval"]:
+                    unit, rows = item[0], item[1]
+                    cat = item[2] if len(item) > 2 else ""
+                    secs.append({"label": "전결", "heading": unit, "kind": "attach", "chapter": stem, "cat": cat,
                                  "blocks": [{"table": [[{"t": "세부업무", "h": 1}, {"t": "전결권자", "h": 1}]] +
                                              [[{"t": a}, {"t": w}] for a, w in rows]}],
                                  "id": f"s{len(secs)}"})
@@ -354,8 +399,8 @@ def main():
             "id": r["id"], "title": r["title"], "category": r["category"],
             "enacted": r["enacted"], "modified": r["modified"], "fileNo": r["fileNo"],
             "parsed": bool(blocks),
-            "secs": [[s["id"], s["label"], s["heading"], "\n".join(block_text(b) for b in s["blocks"])]
-                     for s in secs],
+            "secs": [[s["id"], s["label"], s["heading"], "\n".join(block_text(b) for b in s["blocks"])] +
+                     ([s["cat"]] if s.get("cat") else []) for s in secs],
         })
         with open(os.path.join(OUT, "rules", f"{r['id']}.json"), "w", encoding="utf-8") as f:
             json.dump(detail, f, ensure_ascii=False, separators=(",", ":"))
