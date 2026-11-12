@@ -70,6 +70,58 @@
     return { toks, res, results };
   }
 
+
+  // ---------- 전결권자 판단 ----------
+  let JG_READY = false;
+  function approvalPanel(q, force) {
+    const J = window.Jeongyeol;
+    if (!J) return "";
+    if (!JG_READY) { J.build(DB); JG_READY = true; }
+    const r = J.find(q, 6);
+    const RID = (DB.rules.find((x) => x.title === "위임전결규정") || {}).id;
+    const art = (n) => RID ? `<a href="#/r/${RID}/s${n}">제${n}조</a>` : `제${n}조`;
+    const u0 = r.units[0];
+    const b0 = u0 && u0.rows[0];
+    const full = b0 && b0.matched === r.full;
+    if (!(r.intent || force || full)) return "";
+    if (!u0 && !r.intent) return "";
+    // 확신 정도: 상(질문의 낱말이 별표에 그대로) / 중(비슷한 말로 맞춤) / 하(일부만 맞거나 못 찾음)
+    const conf = !b0 ? 0 : full && !b0.fuzzy && !b0.viaSyn && !u0.excluded.size ? 2 : full && !b0.fuzzy ? 1 : 0;
+    const lv = J.levelHint(q);
+    const rule43 = `<div class="jg-rule"><b>별표에 딱 맞는 업무가 없을 때</b> (${art(4)} ③): 별표의 비슷한 전결사항에 준하거나 아래 기준으로 결재권자를 정해요.
+      <ul>${J.LEVELS.map((L, i) => `<li class="${i === lv ? "me" : ""}"><b>${L.who}</b> ${esc(L.text)}</li>`).join("")}</ul>
+      <div class="jg-why">별표에 그 직위가 없으면 차하위 직위자가 결재해요 (${art(4)} ④). 전결로 처리해도 특히 중요한 사항은 상위자에게 보고해요 (${art(5)} ②).</div></div>`;
+    if (!u0) {
+      return `<div class="card jg"><div class="jg-h">전결권자 판단 <small>위임전결규정 기준</small></div>
+        <div class="jg-best">별표에서 이 업무와 비슷한 항목을 찾지 못했어요.${lv >= 0 ? ` 질문 내용으로 보면 <b>${J.LEVELS[lv].who}</b> 전결로 판단돼요.` : ""}</div>${rule43}</div>`;
+    }
+    const roleKeys = r.roles.flatMap((x) => x[1]);
+    const isRole = (row) => roleKeys.length && roleKeys.some((k) => row.nd.includes(k));
+    const rows = u0.rows.slice().sort((a, b) => isRole(b) - isRole(a) || a.idx - b.idx);
+    const why = [...u0.why].map((w) => w.includes("→") ? `‘${w.split("→")[0]}’ ≈ ‘${w.split("→")[1]}’` : w.endsWith("(유사)") ? `‘${w.replace("(유사)", "")}’ 비슷` : `‘${w}’ 일치`);
+    const notes = [];
+    if (rows.some((x) => /\d[\d,]*\s*(억|천만|백만|만)?\s*원/.test(x.detail))) notes.push("금액 구간에 따라 전결권자가 달라요. 해당 금액 줄을 보세요.");
+    if (rows.some((x) => /중요|일반/.test(x.detail))) notes.push(`중요사항은 공사의 권리의무를 정하거나 경영상 중대한 영향을 미치는 사항, 일반사항은 정해진 절차·범위대로 시행하거나 권리의무를 수반하지 않는 사항이에요 (${art(3)}).`);
+    if (!roleKeys.length && rows.filter((x) => /팀원|팀장|처장|본부장|부사장/.test(x.detail)).length > 1) notes.push("직급에 따라 달라요. 본인(기안자) 직급 줄을 보세요.");
+    if (u0.excluded.size) notes.push(`이 업무 제목에는 ‘${[...u0.excluded].join(", ")}’을(를) 제외한다고 적혀 있어요.`);
+    const link = (u) => `#/r/${u.ruleId}/${u.sid}`;
+    const alts = r.units.slice(1, 4);
+    const head = conf === 2 ? `별표의 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a> 항목이에요.`
+      : conf === 1 ? `별표에 그대로 있지는 않지만 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a>에 해당하는 것으로 판단돼요.`
+      : `딱 맞는 항목은 없어요. 가장 비슷한 것은 <a href="${link(u0)}"><b>${esc(u0.unit)}</b></a>이고, ${art(4)} ③에 따라 이 전결사항에 준해 판단할 수 있어요.`;
+    return `<div class="card jg">
+      <div class="jg-h">전결권자 판단 <small>위임전결규정 별표 기준</small></div>
+      <div class="jg-best">${head}</div>
+      ${conf < 2 && lv >= 0 ? `<div class="jg-best">또 질문 내용은 ${art(4)} ③ 기준으로 <b>${J.LEVELS[lv].who}</b> 결재 사항에 가까워요. 두 기준 중 업무 성격에 맞는 쪽을 따르세요.</div>` : ""}
+      <div class="tw"><table><tr><th>세부업무</th><th>전결권자</th></tr>${rows.map((x) => `<tr class="${isRole(x) ? "me" : ""}"><td>${esc(x.detail)}</td><td class="who">${esc(x.who)}</td></tr>`).join("")}</table></div>
+      ${why.length ? `<div class="jg-why">판단 근거: ${esc(why.join(", "))}</div>` : ""}
+      ${notes.map((n) => `<div class="jg-why">※ ${n}</div>`).join("")}
+      ${alts.length ? `<div class="jg-alt">다만 이런 전결사항일 수도 있어요. 실제 업무에 맞는지 판단해 보세요.</div>
+      <ul class="jg-list">${alts.map((u) => `<li><a href="${link(u)}">${esc(u.unit)}</a><span>${esc(u.rows[0].detail)} → <b>${esc(u.rows[0].who)}</b></span></li>`).join("")}</ul>` : ""}
+      ${conf < 2 ? rule43 : ""}
+    </div>`;
+  }
+
   // ---------- 화면 ----------
   function setTitle(t) { document.title = t ? `${t} · 인천국제공항공사 사규검색` : "인천국제공항공사 사규검색"; }
   const ruleMeta = (r) => `${r.category && r.category !== "기타" ? `<span class="badge">${esc(r.category)}</span>` : ""}개정 ${esc(r.enacted || "-")}`;
@@ -96,6 +148,8 @@
     const link = (k, v) => { const p = new URLSearchParams(params); v ? p.set(k, v) : p.delete(k); return "#/?" + p; };
     view.innerHTML = `
       ${recent.length ? `<div class="label">최근 검색</div><div class="chips">${recent.map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>` : ""}
+      <div class="label">전결권자 물어보기 (문장으로 물어봐도 돼요)</div>
+      <div class="chips">${["해외출장 누가 결재해?", "팀원 연차 전결권자", "용역 계약 변경 전결", "보도자료 배포 승인"].map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>
       <div class="label">전체 사규 ${rules.length}건</div>
       <div class="seg">
         <a class="chip ${sort === "recent" ? "on" : ""}" href="${link("sort", "recent")}">최근 개정순</a>
@@ -113,7 +167,13 @@
     setTitle(q);
     if (!q) return renderHome(params);
     addRecent(q);
-    const { res, results } = search(q);
+    const jg = approvalPanel(q);
+    let { res, results } = search(q);
+    if (!results.length && window.Jeongyeol) {
+      // 문장으로 물어본 경우: 조사·질문 표현을 빼고 다시 찾기
+      const terms = window.Jeongyeol.parse(q).terms;
+      if (terms.length && terms.join(" ") !== q) ({ res, results } = search(terms.join(" ")));
+    }
     const nArts = results.reduce((s, r) => s + r.hits.length, 0);
     const qp = encodeURIComponent(q);
     const shown = new Set(results.map((r) => r.rule.id));
@@ -125,10 +185,10 @@
     const relList = [...rel.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id]) => byId[id]).filter(Boolean);
 
     if (!results.length) {
-      view.innerHTML = `<p class="empty">“${esc(q)}”이(가) 들어간 사규가 없습니다.<br>단어를 줄이거나 다른 표현으로 검색해 보세요.</p>`;
+      view.innerHTML = jg || `<p class="empty">“${esc(q)}”이(가) 들어간 사규가 없습니다.<br>단어를 줄이거나 다른 표현으로 검색해 보세요.</p>`;
       return;
     }
-    view.innerHTML = `
+    view.innerHTML = `${jg}
       <div class="summary">“${esc(q)}” 사규 ${results.length}건 · 조문 ${nArts}곳</div>
       ${results.map((r, i) => card(r, res, qp, i)).join("")}
       ${relList.length ? `<div class="label">관련 사규 (서로 인용하는 규정)</div><div class="chips">${relList.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}`;

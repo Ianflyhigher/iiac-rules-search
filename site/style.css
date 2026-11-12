@@ -108,3 +108,21 @@ details.toc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 .note { font-size: 13px; color: var(--muted); background: var(--accent-soft); border-radius: 9px; padding: 9px 12px; margin: 10px 0; }
 .totop { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 16px); width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); font-size: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.25); display: none; }
 .totop.show { display: block; }
+
+/* 전결권자 판단 */
+.jg { border-color: var(--accent); }
+.jg-h { font-weight: 700; color: var(--accent); font-size: 15px; margin-bottom: 4px; }
+.jg-h small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; }
+.jg-best { font-size: 15.5px; margin-bottom: 4px; }
+.jg-best a { color: var(--fg); }
+.jg .who { font-weight: 700; color: var(--accent); white-space: nowrap; }
+.jg tr.me td { background: var(--accent-soft); }
+.jg-why { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.jg-alt { font-size: 14px; font-weight: 600; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.jg-list { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+.jg-list li { margin: 5px 0; }
+.jg-list span { display: block; color: var(--muted); font-size: 13px; }
+.jg-rule { margin-top: 12px; padding: 10px 12px; background: var(--accent-soft); border-radius: 9px; font-size: 13.5px; }
+.jg-rule ul { margin: 6px 0 4px; padding-left: 18px; }
+.jg-rule li { margin: 3px 0; }
+.jg-rule li.me { font-weight: 700; color: var(--accent); }
