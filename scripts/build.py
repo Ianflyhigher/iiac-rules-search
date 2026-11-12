@@ -499,6 +499,62 @@ def load_rule(rule):
     return blocks, attachments
 
 
+def is_title_line(t):
+    return bool(t) and "\n" not in t and 2 <= len(t) <= 60 and t[0] not in "(※[*-ㅇ□○" \
+        and not ART_RE.match(t) and not ANNEX_RE.match(t) and not re.match(r"^\d+[.)]", t)
+
+
+def _cell_title(tb):
+    for row in tb["table"][:3]:
+        for c in row:
+            ln = (c.get("t") or "").split("\n", 1)[0].strip()
+            if ln and not ANNEX_RE.match(ln) and 2 <= len(ln) <= 60 and not re.match(r"^(제\s*호|No\.?|\d+)$", ln):
+                return ln
+    return ""
+
+
+def fill_annex_titles(secs):
+    """제목 없는 [별지] 섹션: 바로 뒤 몇 블록에서 제목(문단 또는 표 첫 칸)을 찾음"""
+    for s in secs:
+        if s["kind"] != "annex" or s["heading"] or len(s["blocks"]) < 2:
+            continue
+        for i, b in enumerate(s["blocks"][1:4], 1):
+            if b.get("fd") or b.get("fm"):
+                break
+            if "p" in b and is_title_line(b["p"]):
+                s["heading"] = annex_title(b["p"]) or b["p"]
+                s["blocks"][i] = dict(b, ft=1)
+                break
+            if "table" in b:
+                t = _cell_title(b)
+                if t:
+                    s["heading"] = annex_title(t) or t
+                    break
+
+
+def annex_split(blocks, label, heading, chapter):
+    """첨부 파일 블록 안의 [별지]/[별표] 를 서식별 섹션으로 나눔"""
+    secs = [{"label": label, "heading": heading, "kind": "attach", "chapter": chapter, "blocks": []}]
+    for b in blocks:
+        t = b.get("p") or ""
+        first = t.split("\n", 1)[0]
+        am = ANNEX_RE.match(first) if t and len(first) < 400 else None
+        if am:
+            kind = re.sub(r"\s+", "", am.group(1))
+            title = annex_title(am.group(3))
+            if title.startswith("삭제"):
+                secs[-1]["blocks"].append(dict(b, fd=1))
+                continue
+            secs.append({"label": f"{kind} {am.group(2).strip()}".strip(), "heading": title, "kind": "annex",
+                         "chapter": "", "blocks": [dict(b, fm=1)]})
+            continue
+        secs[-1]["blocks"].append(b)
+    if not secs[0]["blocks"]:
+        secs.pop(0)
+    fill_annex_titles(secs)
+    return secs
+
+
 def sectionize(blocks):
     """블록을 조문 단위 섹션으로 나눈다. [별표]/[별지] 부터는 서식 하나가 한 섹션."""
     secs, cur, in_addenda, addenda_n = [], None, False, 0
@@ -513,9 +569,11 @@ def sectionize(blocks):
     new("머리말", "", "head")
     for b in blocks:
         t = b.get("p")
+        if want_title and t and len(t.strip()) < 2:
+            continue  # 'ㄹ' 같은 잡글자는 버리고 계속 제목을 찾음
         if want_title:
             want_title = False
-            if t and "\n" not in t and 2 <= len(t) <= 40 and not t.startswith("(") and not ART_RE.match(t) and not ANNEX_RE.match(t):
+            if is_title_line(t):
                 cur["heading"] = annex_title(t) or t
                 b = dict(b, ft=1)
             elif "table" in b and b["table"] and b["table"][0]:
@@ -524,13 +582,17 @@ def sectionize(blocks):
                     cur["heading"] = c0["t"].split("\n", 1)[0]
         if t:
             first = t.split("\n", 1)[0]
-            am = ANNEX_RE.match(first) if len(first) < 150 else None
+            am = ANNEX_RE.match(first) if len(first) < 400 else None
             if am:
                 kind = re.sub(r"\s+", "", am.group(1))
                 label = f"{kind} {am.group(2).strip()}".strip()
                 rest = am.group(3)
                 title = annex_title(rest)
                 if title.startswith("삭제"):
+                    if not in_annex:  # 부칙 뒤 첫 줄이 삭제된 별표여도 여기서부터 별표·별지 영역
+                        in_annex = True
+                        chapter = ""
+                        new("별표·별지", "목록", "annex")
                     cur["blocks"].append(dict(b, fd=1))
                     continue
                 in_annex = True
@@ -562,6 +624,7 @@ def sectionize(blocks):
                         label = f"부칙 {label}"
                     new(label, (m.group(3) or "").strip(), "article")
         cur["blocks"].append(b)
+    fill_annex_titles(secs)
     out = []
     for s in secs:
         if not s["blocks"] and s["kind"] == "head":
@@ -623,8 +686,9 @@ def main():
                 continue
             if ab:
                 stem = os.path.splitext(name)[0]
-                secs.append({"label": "첨부", "heading": stem, "kind": "attach", "chapter": "",
-                             "blocks": ab, "id": f"s{len(secs)}"})
+                for x in annex_split(ab, "첨부", stem, ""):
+                    x["id"] = f"s{len(secs)}"
+                    secs.append(x)
         alltext = "\n".join(block_text(b) for s in secs for b in s["blocks"])
         texts[r["id"]] = alltext
         head = next((s for s in secs if s["kind"] == "head"), None)

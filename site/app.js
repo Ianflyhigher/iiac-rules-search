@@ -235,6 +235,9 @@
     });
   }
 
+  const secInner = (s, res) => (s.kind === "annex" && s.label === "별표·별지" ? `<div class="fmark"><span class="flabel">별표·별지 목록</span></div>` : "") +
+    s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res, s.kind)).join("");
+
   const ART_HEAD = /^(제\s*\d+\s*조(?:\s*의\s*\d+)?(?:\s*\([^)]*\))?)/;
   function blockHtml(b, res, kind) {
     if (b.p) {
@@ -285,7 +288,7 @@
         chapHtml = `<div class="chap">${esc(s.chapter)}</div>`;
       }
       if (s.kind !== "head") toc.push(`<li><a href="#/r/${id}/${s.id}${q ? `?q=${encodeURIComponent(q)}` : ""}">${esc(s.label)}${s.heading ? ` ${esc(s.heading)}` : ""}</a></li>`);
-      return `${chapHtml}<section class="sec${s.kind === "head" ? " head" : s.kind === "annex" ? " annex" : ""}" id="${s.id}">${s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res, s.kind)).join("")}</section>`;
+      return `${chapHtml}<section class="sec${s.kind === "head" ? " head" : s.kind === "annex" ? " annex" : ""}" id="${s.id}">${secInner(s, res)}</section>`;
     });
     const dl = `https://www.alio.go.kr/download/rulefiledown.json?fileNo=${d.fileNo}`;
     view.innerHTML = `
@@ -322,7 +325,7 @@
       view.querySelectorAll(".sec").forEach((el, i) => {
         const s = d.sections[i];
         if (!s) return;
-        el.innerHTML = s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res, s.kind)).join("");
+        el.innerHTML = secInner(s, res);
       });
       fitTables();
       marks = [...view.querySelectorAll(".doc mark")];
