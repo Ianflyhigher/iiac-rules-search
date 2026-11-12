@@ -261,20 +261,20 @@
     const dl = `https://www.alio.go.kr/download/rulefiledown.json?fileNo=${d.fileNo}`;
     view.innerHTML = `
       <div class="dhead">
-        <div class="meta">${ruleMeta(meta)}${d.effective ? ` · 시행 ${esc(d.effective)}` : ""}</div>
         <h2>${esc(d.title)}</h2>
-        <div class="links">
-          <a class="btn primary" href="${dl}" target="_blank" rel="noopener">원문 파일 받기</a>
-          <a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">알리오에서 보기</a>
-          ${q ? `<a class="btn" href="#/s?q=${encodeURIComponent(q)}">← 검색 결과</a>` : ""}
-        </div>
-        ${d.attachments.length ? `<div class="note">함께 올라온 파일: ${d.attachments.map(esc).join(", ")} (원문 파일에 포함)</div>` : ""}
+        <div class="meta">${ruleMeta(meta)}${d.effective ? ` · 시행 ${esc(d.effective)}` : ""}</div>
+        ${q ? `<div class="links"><a class="btn sm" href="#/s?q=${encodeURIComponent(q)}">← 검색 결과</a></div>` : ""}
         ${refs.length ? `<div class="label rl">이 사규가 인용하는 사규</div><div class="chips sm">${refs.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
         ${refBy.length ? `<div class="label rl">이 사규를 인용하는 사규</div><div class="chips sm">${refBy.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
       </div>
       <div class="findbar"><span class="ftitle">${esc(d.title)}</span><input id="find" type="search" placeholder="이 사규 안에서 찾기" value="${esc(q)}" enterkeyhint="search"><span class="cnt" id="findCnt"></span><button id="prev" aria-label="이전">▲</button><button id="next" aria-label="다음">▼</button></div>
       ${toc.length > 1 ? `<details class="toc"><summary>목차 (${d.sections.filter((s) => s.kind !== "head").length})</summary><ol>${toc.join("")}</ol></details>` : ""}
-      ${d.parsed ? `<div class="doc">${secs.join("")}</div>` : `<div class="note">이 사규는 본문을 자동으로 읽지 못했습니다. 위의 ‘원문 파일 받기’로 확인해 주세요.</div>`}`;
+      ${d.parsed ? `<div class="doc">${secs.join("")}</div>` : `<div class="note">이 사규는 본문을 자동으로 읽지 못했습니다. 아래 ‘원문 파일 받기’로 확인해 주세요.</div>`}
+      <div class="links bottom">
+        <a class="btn sm primary" href="${dl}" target="_blank" rel="noopener">원문 파일 받기</a>
+        <a class="btn sm" href="${esc(d.url)}" target="_blank" rel="noopener">알리오에서 보기</a>
+      </div>
+      ${d.attachments.length ? `<div class="note fnote">함께 올라온 파일: ${d.attachments.map(esc).join(", ")} (원문 파일에 포함)</div>` : ""}`;
     setupFind(id, d, q);
     if (sid) {
       const el = document.getElementById(sid);

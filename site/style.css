@@ -165,3 +165,8 @@ details.toc { margin: 6px 0 8px; padding: 8px 12px; }
 .sec.head p:not(:first-child) { font-size: 13.5px; color: var(--muted); }
 
 .srcline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; letter-spacing: -0.3px; }
+.btn.sm { font-size: 12.5px; padding: 5px 11px; }
+.links.bottom { justify-content: center; margin: 14px 0 6px; }
+.fnote { font-size: 12px; padding: 6px 10px; margin: 4px 0 0; }
+.footrow { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; padding-bottom: 64px; font-size: 12px; }
+.footrow a { color: var(--accent); text-decoration: none; }
