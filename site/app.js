@@ -147,10 +147,10 @@
     const recent = getRecent();
     const link = (k, v) => { const p = new URLSearchParams(params); v ? p.set(k, v) : p.delete(k); return "#/?" + p; };
     view.innerHTML = `
-      ${recent.length ? `<div class="label">최근 검색</div><div class="chips one">${recent.map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>` : ""}
-      <div class="label">전결권자 물어보기 <small>문장으로 물어봐도 돼요</small></div>
+      ${recent.length ? `<div class="label sec sec-recent">최근 검색</div><div class="chips one">${recent.map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>` : ""}
+      <div class="label sec sec-jg">전결권자 물어보기 <small>문장으로 물어봐도 돼요</small></div>
       <div class="chips one">${["해외출장 결재", "팀원 연차", "계약변경 전결"].map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>
-      <div class="label">전체 사규 ${rules.length}건</div>
+      <div class="label sec sec-all">전체 사규 ${rules.length}건</div>
       <div class="seg">
         <a class="chip ${sort === "recent" ? "on" : ""}" href="${link("sort", "recent")}">최근 개정순</a>
         <a class="chip ${sort === "name" ? "on" : ""}" href="${link("sort", "name")}">가나다순</a>
