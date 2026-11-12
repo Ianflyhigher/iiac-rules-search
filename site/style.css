@@ -119,10 +119,17 @@ details.toc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 .jg tr.me td { background: var(--accent-soft); }
 .jg-why { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .jg-alt { font-size: 14px; font-weight: 600; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
-.jg-list { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
-.jg-list li { margin: 5px 0; }
-.jg-list span { display: block; color: var(--muted); font-size: 13px; }
+.jg-alts { display: grid; gap: 8px; margin-top: 8px; }
+.jg-altbox { position: relative; display: block; border: 1px solid var(--line); border-left: 4px solid #f7a21b; border-radius: 9px; padding: 8px 10px 8px 38px; background: var(--bg); color: var(--fg); }
+.jg-altbox .no { position: absolute; left: 10px; top: 9px; width: 20px; height: 20px; border-radius: 50%; background: #f7a21b; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.jg-altbox .t { display: block; font-weight: 700; font-size: 14.5px; color: var(--accent); }
+.jg-altbox .d { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
+.jg-altbox .w { display: block; font-size: 13px; margin-top: 2px; }
 .jg-rule { margin-top: 12px; padding: 10px 12px; background: var(--accent-soft); border-radius: 9px; font-size: 13.5px; }
 .jg-rule ul { margin: 6px 0 4px; padding-left: 18px; }
 .jg-rule li { margin: 3px 0; }
 .jg-rule li.me { font-weight: 700; color: var(--accent); }
+.chips.one { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
+.chips.one::-webkit-scrollbar { display: none; }
+.chips.one .chip { flex: none; white-space: nowrap; font-size: 13.5px; padding: 5px 10px; }
+.label small { font-weight: 400; margin-left: 4px; }

@@ -117,7 +117,7 @@
       ${why.length ? `<div class="jg-why">판단 근거: ${esc(why.join(", "))}</div>` : ""}
       ${notes.map((n) => `<div class="jg-why">※ ${n}</div>`).join("")}
       ${alts.length ? `<div class="jg-alt">다만 이런 전결사항일 수도 있어요. 실제 업무에 맞는지 판단해 보세요.</div>
-      <ul class="jg-list">${alts.map((u) => `<li><a href="${link(u)}">${esc(u.unit)}</a><span>${esc(u.rows[0].detail)} → <b>${esc(u.rows[0].who)}</b></span></li>`).join("")}</ul>` : ""}
+      <div class="jg-alts">${alts.map((u, i) => `<a class="jg-altbox" href="${link(u)}"><span class="no">${i + 1}</span><span class="t">${esc(u.unit)}</span><span class="d">${esc(u.rows[0].detail)}</span><span class="w">전결권자 <b>${esc(u.rows[0].who)}</b></span></a>`).join("")}</div>` : ""}
       ${conf < 2 ? rule43 : ""}
     </div>`;
   }
@@ -147,9 +147,9 @@
     const recent = getRecent();
     const link = (k, v) => { const p = new URLSearchParams(params); v ? p.set(k, v) : p.delete(k); return "#/?" + p; };
     view.innerHTML = `
-      ${recent.length ? `<div class="label">최근 검색</div><div class="chips">${recent.map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>` : ""}
-      <div class="label">전결권자 물어보기 (문장으로 물어봐도 돼요)</div>
-      <div class="chips">${["해외출장 누가 결재해?", "팀원 연차 전결권자", "용역 계약 변경 전결", "보도자료 배포 승인"].map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>
+      ${recent.length ? `<div class="label">최근 검색</div><div class="chips one">${recent.map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>` : ""}
+      <div class="label">전결권자 물어보기 <small>문장으로 물어봐도 돼요</small></div>
+      <div class="chips one">${["해외출장 결재", "팀원 연차", "계약변경 전결"].map((q) => `<a class="chip" href="#/s?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>
       <div class="label">전체 사규 ${rules.length}건</div>
       <div class="seg">
         <a class="chip ${sort === "recent" ? "on" : ""}" href="${link("sort", "recent")}">최근 개정순</a>
@@ -173,6 +173,10 @@
       // 문장으로 물어본 경우: 조사·질문 표현을 빼고 다시 찾기
       const terms = window.Jeongyeol.parse(q).terms;
       if (terms.length && terms.join(" ") !== q) ({ res, results } = search(terms.join(" ")));
+    }
+    if (jg) {
+      const only = results.filter((x) => x.rule.title === "위임전결규정");
+      if (only.length) results = only;
     }
     const nArts = results.reduce((s, r) => s + r.hits.length, 0);
     const qp = encodeURIComponent(q);
