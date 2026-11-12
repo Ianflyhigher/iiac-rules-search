@@ -177,3 +177,5 @@ details.toc { margin: 6px 0 8px; padding: 8px 12px; }
 .tw td.big { font-weight: 700; font-size: 16px; }
 .tw td div.big { font-weight: 700; font-size: 16px; }
 .tw table.fx td, .tw table.fx th { padding: 5px 5px; }
+.tw table.fx td, .tw table.fx th { overflow-wrap: normal; word-break: keep-all; }
+.tw table.fx td div.big, .tw table.fx td.big { font-size: 1.25em; }

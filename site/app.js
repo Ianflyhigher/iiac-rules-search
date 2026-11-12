@@ -225,6 +225,16 @@
     return detailCache[id];
   }
 
+  // 서식 표: 낱말이 칸을 넘치면 그 표의 글씨를 조금씩 줄여 줄이 안 나뉘게
+  function fitTables(root = view) {
+    root.querySelectorAll(".tw table.fx").forEach((tb) => {
+      let fs = 13;
+      tb.style.fontSize = fs + "px";
+      const over = () => [...tb.querySelectorAll("td,th")].some((c) => c.scrollWidth > c.clientWidth + 1);
+      while (fs > 9.5 && over()) { fs -= 0.5; tb.style.fontSize = fs + "px"; }
+    });
+  }
+
   const ART_HEAD = /^(제\s*\d+\s*조(?:\s*의\s*\d+)?(?:\s*\([^)]*\))?)/;
   function blockHtml(b, res) {
     if (b.p) {
@@ -285,6 +295,7 @@
       </div>
       ${d.attachments.length ? `<div class="note fnote">함께 올라온 파일: ${d.attachments.map(esc).join(", ")} (원문 파일에 포함)</div>` : ""}`;
     setupFind(id, d, q);
+    fitTables();
     if (sid) {
       const el = document.getElementById(sid);
       if (el) { requestAnimationFrame(() => { el.scrollIntoView({ block: "start" }); el.classList.add("target"); }); }
@@ -302,6 +313,7 @@
         if (!s) return;
         el.innerHTML = s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res)).join("");
       });
+      fitTables();
       marks = [...view.querySelectorAll(".doc mark")];
       cur = -1;
       cnt.textContent = q ? `${marks.length}건` : "";
@@ -344,7 +356,7 @@
   });
   window.addEventListener("hashchange", route);
   const setTopH = () => document.documentElement.style.setProperty("--top-h", $(".top").offsetHeight + "px");
-  setTopH(); window.addEventListener("resize", setTopH);
+  setTopH(); window.addEventListener("resize", () => { setTopH(); fitTables(); });
 
   const top = document.createElement("button");
   top.className = "totop"; top.textContent = "↑"; top.setAttribute("aria-label", "맨 위로");
