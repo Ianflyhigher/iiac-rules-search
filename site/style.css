@@ -136,7 +136,7 @@ details.toc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 
 /* 첫 화면 구역 제목 */
 .label.sec { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; color: var(--fg); margin: 20px 0 8px; line-height: 1.2; }
-.label.sec::before { content: ""; flex: none; width: 4px; height: 12px; border-radius: 2px; background: var(--muted); margin-right: 2px; }
+.label.sec::before { content: ""; flex: none; width: 4px; height: 14px; border-radius: 2px; background: var(--muted); margin-right: 2px; }
 .label.sec:first-child { margin-top: 6px; }
 .label.sec-recent::before { background: #8a96a3; }
 .label.sec-jg::before { background: #f7a21b; }
