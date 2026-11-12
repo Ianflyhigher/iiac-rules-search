@@ -135,12 +135,13 @@ details.toc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 .label small { font-weight: 400; margin-left: 4px; }
 
 /* 첫 화면 구역 제목 */
-.label.sec { display: flex; align-items: baseline; gap: 6px; font-size: 15px; font-weight: 700; color: var(--fg); margin: 20px 0 8px; padding-left: 10px; border-left: 4px solid var(--muted); line-height: 1.2; }
+.label.sec { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; color: var(--fg); margin: 20px 0 8px; line-height: 1.2; }
+.label.sec::before { content: ""; flex: none; width: 4px; height: 12px; border-radius: 2px; background: var(--muted); margin-right: 2px; }
 .label.sec:first-child { margin-top: 6px; }
-.label.sec-recent { border-left-color: #8a96a3; }
-.label.sec-jg { border-left-color: #f7a21b; }
-.label.sec-all { border-left-color: var(--accent); }
-.label.sec small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.label.sec-recent::before { background: #8a96a3; }
+.label.sec-jg::before { background: #f7a21b; }
+.label.sec-all::before { background: var(--accent); }
+.label.sec small { align-self: baseline; font-size: 12px; font-weight: 400; color: var(--muted); }
 .sec-jg + .chips .chip { border-color: #f7c56b; background: #fff8ea; color: #8a5a00; }
 :root[data-theme="dark"] .sec-jg + .chips .chip { background: #3a2d12; color: #ffd58a; border-color: #6b4f1a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sec-jg + .chips .chip { background: #3a2d12; color: #ffd58a; border-color: #6b4f1a; } }
