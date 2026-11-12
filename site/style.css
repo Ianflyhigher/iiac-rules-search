@@ -181,3 +181,12 @@ details.toc { margin: 6px 0 8px; padding: 8px 12px; }
 .tw table.fx td div.big, .tw table.fx td.big { font-size: 1.25em; }
 .dhead .trow { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .dhead .trow .back { flex: none; margin-top: 2px; }
+.sec.annex { border-top: 2px solid var(--accent); margin-top: 22px; padding-top: 10px; }
+.sec.annex + .sec.annex { margin-top: 26px; }
+.fmark { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.fmark .flabel { display: inline-block; background: var(--accent); color: #fff; font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 12.5px; }
+.fmark .fmeta { font-size: 12px; }
+p.ftitle { text-align: center; font-weight: 700; font-size: 17px; margin: 10px 0 12px; }
+p.fdel { font-size: 12.5px; color: var(--muted); margin: 2px 0; }
+.sec strong.blk { color: var(--fg); }
+p.flist { font-size: 13.5px; margin: 2px 0; }

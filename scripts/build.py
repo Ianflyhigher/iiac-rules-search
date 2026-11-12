@@ -24,6 +24,14 @@ OUT = os.path.join(ROOT, "site", "data")
 ART_RE = re.compile(r"^\s*(제\s*\d+\s*조(?:\s*의\s*\d+)?)\s*(\(([^)]*)\))?")
 CHAP_RE = re.compile(r"^\s*제\s*\d+\s*(장|절|관)(\s|$)")
 ADDENDA_RE = re.compile(r"^\s*부\s*칙")
+ANNEX_RE = re.compile(r"^\s*\[\s*(별\s*표|별\s*지)([^\]]*)\]\s*(.*)$")
+
+
+def annex_title(rest):
+    """'[별표 3] 채용시험 가점대상자 및 가점(제13조제5항 관련)' 의 뒷부분에서 제목만"""
+    t = re.sub(r"<[^>]*>", "", rest)
+    t = re.sub(r"\(\s*제\s*\d+[^)]*관련\s*\)", "", t)
+    return t.strip()
 WS = re.compile(r"[ \t 　]+")
 
 
@@ -492,9 +500,10 @@ def load_rule(rule):
 
 
 def sectionize(blocks):
-    """블록을 조문 단위 섹션으로 나눈다."""
+    """블록을 조문 단위 섹션으로 나눈다. [별표]/[별지] 부터는 서식 하나가 한 섹션."""
     secs, cur, in_addenda, addenda_n = [], None, False, 0
     chapter, chap = "", []
+    in_annex, want_title = False, False
 
     def new(label, heading, kind):
         nonlocal cur
@@ -504,9 +513,35 @@ def sectionize(blocks):
     new("머리말", "", "head")
     for b in blocks:
         t = b.get("p")
+        if want_title:
+            want_title = False
+            if t and "\n" not in t and 2 <= len(t) <= 40 and not t.startswith("(") and not ART_RE.match(t) and not ANNEX_RE.match(t):
+                cur["heading"] = annex_title(t) or t
+                b = dict(b, ft=1)
+            elif "table" in b and b["table"] and b["table"][0]:
+                c0 = b["table"][0][0]
+                if c0.get("big") or (c0.get("lb") or "").startswith("1"):
+                    cur["heading"] = c0["t"].split("\n", 1)[0]
         if t:
             first = t.split("\n", 1)[0]
-            if ADDENDA_RE.match(first) and len(first) < 40:
+            am = ANNEX_RE.match(first) if len(first) < 150 else None
+            if am:
+                kind = re.sub(r"\s+", "", am.group(1))
+                label = f"{kind} {am.group(2).strip()}".strip()
+                rest = am.group(3)
+                title = annex_title(rest)
+                if title.startswith("삭제"):
+                    cur["blocks"].append(dict(b, fd=1))
+                    continue
+                in_annex = True
+                chapter = ""
+                new(label, title, "annex")
+                b = dict(b, fm=1)
+                if not title:
+                    want_title = True
+            elif in_annex:
+                pass
+            elif ADDENDA_RE.match(first) and len(first) < 40:
                 in_addenda = True
                 addenda_n += 1
                 chapter = first
@@ -529,8 +564,20 @@ def sectionize(blocks):
         cur["blocks"].append(b)
     out = []
     for s in secs:
-        if s["blocks"] or s["kind"] != "head":
-            out.append(s)
+        if not s["blocks"] and s["kind"] == "head":
+            continue
+        # 본문 없이 제목 줄만 있는 [별표]/[별지] 는 목록 줄 → 하나의 '별표·별지 목록' 으로 모음
+        if s["kind"] == "annex" and all(b.get("fm") or b.get("fd") for b in s["blocks"]):
+            lines = [b if b.get("fd") else {"p": b["p"], "fl": 1} for b in s["blocks"]]
+            if out and out[-1].get("_list"):
+                out[-1]["blocks"].extend(lines)
+            else:
+                out.append({"label": "별표·별지", "heading": "목록", "kind": "annex", "chapter": "",
+                            "blocks": lines, "_list": True})
+            continue
+        out.append(s)
+    for s in out:
+        s.pop("_list", None)
     for i, s in enumerate(out):
         s["id"] = f"s{i}"
     return out

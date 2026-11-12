@@ -236,10 +236,20 @@
   }
 
   const ART_HEAD = /^(제\s*\d+\s*조(?:\s*의\s*\d+)?(?:\s*\([^)]*\))?)/;
-  function blockHtml(b, res) {
+  function blockHtml(b, res, kind) {
     if (b.p) {
+      if (b.fd) return `<p class="fdel">${highlight(b.p, res)}</p>`;
+      if (b.fl) return `<p class="flist">${highlight(b.p, res)}</p>`;
+      if (b.fm) {
+        const m = b.p.match(/^(\s*\[[^\]]*\])\s*(.*)$/s) || [null, b.p, ""];
+        const rest = m[2] || "";
+        const title = rest.replace(/<[^>]*>/g, "").replace(/\(\s*제\s*\d+[^)]*관련\s*\)/g, "").trim();
+        const meta = rest.match(/<[^>]*>|\(\s*제\s*\d+[^)]*관련\s*\)/g) || [];
+        return `<div class="fmark"><span class="flabel">${highlight(m[1].trim(), res)}</span>${meta.length ? ` <span class="fmeta">${highlight(meta.join(" "), res)}</span>` : ""}</div>${title ? `<p class="ftitle">${highlight(title, res)}</p>` : ""}`;
+      }
+      if (b.ft) return `<p class="ftitle">${highlight(b.p, res)}</p>`;
       const m = b.p.match(ART_HEAD);
-      if (m) return `<p><strong>${highlight(m[1], res)}</strong>${highlight(b.p.slice(m[1].length), res)}</p>`;
+      if (m) return `<p><strong${kind === "annex" ? ' class="blk"' : ""}>${highlight(m[1], res)}</strong>${highlight(b.p.slice(m[1].length), res)}</p>`;
       return `<p>${highlight(b.p, res)}</p>`;
     }
     const AL = { c: "center", r: "right", l: "left" };
@@ -275,7 +285,7 @@
         chapHtml = `<div class="chap">${esc(s.chapter)}</div>`;
       }
       if (s.kind !== "head") toc.push(`<li><a href="#/r/${id}/${s.id}${q ? `?q=${encodeURIComponent(q)}` : ""}">${esc(s.label)}${s.heading ? ` ${esc(s.heading)}` : ""}</a></li>`);
-      return `${chapHtml}<section class="sec${s.kind === "head" ? " head" : ""}" id="${s.id}">${s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res)).join("")}</section>`;
+      return `${chapHtml}<section class="sec${s.kind === "head" ? " head" : s.kind === "annex" ? " annex" : ""}" id="${s.id}">${s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res, s.kind)).join("")}</section>`;
     });
     const dl = `https://www.alio.go.kr/download/rulefiledown.json?fileNo=${d.fileNo}`;
     view.innerHTML = `
@@ -312,7 +322,7 @@
       view.querySelectorAll(".sec").forEach((el, i) => {
         const s = d.sections[i];
         if (!s) return;
-        el.innerHTML = s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res)).join("");
+        el.innerHTML = s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res, s.kind)).join("");
       });
       fitTables();
       marks = [...view.querySelectorAll(".doc mark")];
