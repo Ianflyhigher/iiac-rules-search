@@ -289,8 +289,22 @@ def _kids(e, name):
     return [c for c in e if isinstance(c.tag, str) and _ln(c) == name]
 
 
+def _ttext(t):
+    """<hp:t> 안의 글자. 형광펜(markpen)·탭·줄바꿈 같은 하위 요소 뒤의 글자(tail)까지 모두 읽음"""
+    buf = [t.text or ""]
+    for c in t:
+        if isinstance(c.tag, str):
+            name = _ln(c)
+            if name == "tab":
+                buf.append(" ")
+            elif name == "lineBreak":
+                buf.append("\n")
+        buf.append(c.tail or "")
+    return "".join(buf)
+
+
 def _ptext(p):
-    return "".join(t.text or "" for t in p.iter("{*}t") if _owner_p(t) is p)
+    return "".join(_ttext(t) for t in p.iter("{*}t") if _owner_p(t) is p)
 
 
 def hwpx_table(tbl, st):
@@ -757,12 +771,60 @@ def block_text(b):
                      if not all(c.get("h") for c in row))
 
 
+# 그림 설명(대체 글자)은 본문이 아니므로 비교에서 뺌
+PIC_ALT = re.compile(r"그림입니다\.\s*원본 그림의 이름:[^\n]*\n?원본 그림의 크기:[^\n]*?pixel(, 세로 \d+pixel)?")
+
+
+def _raw_text(name, data):
+    """검증용: 변환 경로와 다른 방법으로 원문 글자를 통째로 뽑음"""
+    ext = os.path.splitext(name)[1].lower()
+    if ext in (".hwpx", ".hwp") and data[:2] == b"PK":
+        z = zipfile.ZipFile(io.BytesIO(data))
+        out = []
+        for n in z.namelist():
+            if re.match(r"Contents/section\d+\.xml", n):
+                out.append("".join(etree.fromstring(z.read(n)).itertext()))
+        return PIC_ALT.sub("", "".join(out))
+    if ext == ".hwp":
+        exe = shutil.which("hwp5txt") or os.path.join(os.path.dirname(sys.executable), "hwp5txt")
+        with tempfile.NamedTemporaryFile(suffix=".hwp", delete=False) as f:
+            f.write(data)
+        try:
+            r = subprocess.run([exe, f.name], capture_output=True, timeout=300)
+            out = r.stdout.decode("utf-8", "ignore").replace("<표>", "")
+            # 그림 설명(대체 글자)은 본문이 아니므로 비교에서 뺌
+            return PIC_ALT.sub("", out)
+        finally:
+            os.remove(f.name)
+    if ext == ".zip":
+        z = zipfile.ZipFile(io.BytesIO(data))
+        return "".join(_raw_text(n, z.read(n)) for n in zip_names(z) if os.path.splitext(n)[1].lower() in (".hwp", ".hwpx"))
+    return ""
+
+
+def text_check(r, secs):
+    """원문 글자 중 사이트 데이터에 빠진 비율. 1%를 넘으면 경고 (예: HWPX 형광펜 뒤 글자 누락)"""
+    import collections
+    try:
+        with open(os.path.join(RAW, r["file"]), "rb") as f:
+            raw = _raw_text(r["file"], f.read())
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+    ours = "".join(block_text(b) for s in secs for b in s["blocks"]) + "".join(s.get("chapter") or "" for s in secs)
+    a = collections.Counter(re.sub(r"\s+", "", raw))
+    b = collections.Counter(re.sub(r"\s+", "", ours))
+    total = sum(a.values())
+    miss = sum((a - b).values())
+    return {"raw": total, "missing": miss, "ratio": round(miss / total, 4) if total else 0}
+
+
 def main():
     with open(os.path.join(RAW, "manifest.json"), encoding="utf-8") as f:
         man = json.load(f)
     rules = man["rules"]
     os.makedirs(os.path.join(OUT, "rules"), exist_ok=True)
     index, texts, failed = [], {}, []
+    checks, suspect = {}, []
     for r in rules:
         try:
             blocks, attachments = load_rule(r)
@@ -820,7 +882,13 @@ def main():
         })
         with open(os.path.join(OUT, "rules", f"{r['id']}.json"), "w", encoding="utf-8") as f:
             json.dump(detail, f, ensure_ascii=False, separators=(",", ":"))
-        print(f"{'✓' if blocks else '✗'} {r['title']} ({len(secs)}개 조문)")
+        chk = text_check(r, secs)
+        checks[r["title"]] = chk
+        warn = chk.get("ratio", 0) > 0.01
+        if warn:
+            suspect.append(r["title"])
+        print(f"{'✓' if blocks else '✗'} {r['title']} ({len(secs)}개 조문)"
+              + (f"  ! 원문 글자 {chk['missing']}자 누락 의심({chk['ratio']:.1%})" if warn else ""))
 
     # 관련 사규: 본문에서 다른 사규 제목을 언급한 경우
     titles = {r["id"]: r["title"] for r in rules}
@@ -843,7 +911,11 @@ def main():
     with open(os.path.join(OUT, "index.json"), "w", encoding="utf-8") as f:
         json.dump({"source": man["source"], "collectedAt": man.get("collectedAt", ""),
                    "rules": index}, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"\n완료: {len(rules)}건, 변환 실패 {len(failed)}건")
+    with open(os.path.join(OUT, "check.json"), "w", encoding="utf-8") as f:
+        json.dump(checks, f, ensure_ascii=False, indent=0)
+    print(f"\n완료: {len(rules)}건, 변환 실패 {len(failed)}건, 글자 누락 의심 {len(suspect)}건")
+    for t in suspect:
+        print("  ! 누락 의심", t, checks[t])
     for t in failed:
         print("  ✗", t)
 
