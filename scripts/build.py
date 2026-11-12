@@ -70,7 +70,19 @@ def hwp_blocks(path):
         shutil.rmtree(tmp, ignore_errors=True)
     global HWP_STYLE
     HWP_STYLE = parse_hwp_css(css)
+    HWP_FULLTEXT[_md5(path)] = doc.find(".//body").text_content()
     return html_blocks(doc)
+
+
+HWP_FULLTEXT = {}
+
+
+def _md5(path_or_bytes):
+    import hashlib
+    if isinstance(path_or_bytes, bytes):
+        return hashlib.md5(path_or_bytes).hexdigest()
+    with open(path_or_bytes, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()
 
 
 HWP_STYLE = ({}, {})
@@ -181,6 +193,17 @@ def cell_lines(td):
         a = align.get(_cls_num(p, "parashape-"))
         z = max([size.get(_cls_num(sp, "charshape-"), 0) for sp in p.iter("span")] or [0])
         lines.append((text_no_tables(p), a, z))
+        for tbl in p.iter("table"):
+            near = next(tbl.iterancestors("td"), None)
+            if near is not td:
+                continue
+            for tr in tbl.iter("tr"):
+                if next(tr.iterancestors("table")) is not tbl:
+                    continue
+                cells = [clean(c.text_content()) for c in tr if c.tag in ("td", "th")]
+                cells = [c for c in cells if c]
+                if cells:
+                    lines.append((" | ".join(cells), None, 0))
     if not lines:
         lines.append((td.text_content(), None, 0))
     return lines
@@ -246,13 +269,22 @@ def table_block(rows, w):
 def html_blocks(doc):
     body = doc.find(".//body")
     blocks = []
-    for p in body.iter("p"):
-        if any(a.tag == "table" for a in p.iterancestors()):
+    # 문단(p)과, 문단 밖에 바로 놓인 표(table)를 문서 순서대로 읽음.
+    # (예전엔 p 안의 표만 읽어서 감사규정 별표1 위임전결 기준표 같은 '문단 밖 표'가 통째로 빠졌음)
+    for el in body.iter("p", "table"):
+        if any(a.tag == "table" for a in el.iterancestors()):
             continue
-        t = clean(text_no_tables(p))
+        if el.tag == "table":
+            if any(a.tag == "p" for a in el.iterancestors()):
+                continue  # 문단 안의 표는 아래 p 처리에서 읽음
+            rows, w = table_rows(el)
+            if rows:
+                blocks.append(table_block(rows, w))
+            continue
+        t = clean(text_no_tables(el))
         if t:
             blocks.append({"p": t})
-        for tbl in p.iter("table"):
+        for tbl in el.iter("table"):
             if any(a.tag == "table" for a in tbl.iterancestors()):
                 continue
             rows, w = table_rows(tbl)
@@ -785,6 +817,9 @@ def _raw_text(name, data):
             if re.match(r"Contents/section\d+\.xml", n):
                 out.append("".join(etree.fromstring(z.read(n)).itertext()))
         return PIC_ALT.sub("", "".join(out))
+    if ext == ".hwp" and _md5(data) in HWP_FULLTEXT:
+        # 한글 → HTML 변환 결과 '전체'(문단·표 구분 없이)의 글자. 블록 읽기에서 빠진 것을 잡아냄
+        return PIC_ALT.sub("", HWP_FULLTEXT[_md5(data)])
     if ext == ".hwp":
         exe = shutil.which("hwp5txt") or os.path.join(os.path.dirname(sys.executable), "hwp5txt")
         with tempfile.NamedTemporaryFile(suffix=".hwp", delete=False) as f:
@@ -798,7 +833,8 @@ def _raw_text(name, data):
             os.remove(f.name)
     if ext == ".zip":
         z = zipfile.ZipFile(io.BytesIO(data))
-        return "".join(_raw_text(n, z.read(n)) for n in zip_names(z) if os.path.splitext(n)[1].lower() in (".hwp", ".hwpx"))
+        return "".join(_raw_text(n, z.read(info)) for info, n in zip_names(z)
+                       if os.path.splitext(n)[1].lower() in (".hwp", ".hwpx"))
     return ""
 
 
