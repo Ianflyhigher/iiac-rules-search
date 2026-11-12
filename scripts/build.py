@@ -24,7 +24,7 @@ OUT = os.path.join(ROOT, "site", "data")
 ART_RE = re.compile(r"^\s*(제\s*\d+\s*조(?:\s*의\s*\d+)?)\s*(\(([^)]*)\))?")
 CHAP_RE = re.compile(r"^\s*제\s*\d+\s*(장|절|관)(\s|$)")
 ADDENDA_RE = re.compile(r"^\s*부\s*칙")
-ANNEX_RE = re.compile(r"^\s*\[\s*(별\s*표|별\s*지)([^\]]*)\]\s*(.*)$")
+ANNEX_RE = re.compile(r"^\s*[\[〔【]?\s*(별\s*표|별\s*지|별\s*첨|붙\s*임)([^\]〕】\[]{0,25})[\]〕】]\s*(.*)$")
 
 
 def annex_title(rest):
@@ -516,9 +516,10 @@ def _cell_title(tb):
 def fill_annex_titles(secs):
     """제목 없는 [별지] 섹션: 바로 뒤 몇 블록에서 제목(문단 또는 표 첫 칸)을 찾음"""
     for s in secs:
-        if s["kind"] != "annex" or s["heading"] or len(s["blocks"]) < 2:
+        if s["kind"] != "annex" or s["heading"] or not s["blocks"]:
             continue
-        for i, b in enumerate(s["blocks"][1:4], 1):
+        st = 1 if s["blocks"][0].get("fm") else 0
+        for i, b in enumerate(s["blocks"][st:st + 3], st):
             if b.get("fd") or b.get("fm"):
                 break
             if "p" in b and is_title_line(b["p"]):
@@ -555,20 +556,127 @@ def annex_split(blocks, label, heading, chapter):
     return secs
 
 
+LOST_RE = re.compile(r"^\s*[\[〔【]\s*(<[^>]*>\s*)*$")
+
+
+def marker_of(b):
+    """블록이 [별표]/[별지] 시작 줄이면 (키, 종류, 번호, 뒷부분) — 표 첫 칸에 들어간 경우도 인식"""
+    if b.get("p"):
+        first = b["p"].split("\n", 1)[0]
+        tbl = False
+    elif b.get("table") and b["table"] and b["table"][0]:
+        first = (b["table"][0][0].get("t") or "").split("\n", 1)[0]
+        tbl = True
+    else:
+        return None
+    if len(first) >= 2000:
+        return None
+    am = ANNEX_RE.match(first)
+    if not am:
+        return None
+    kind = re.sub(r"\s+", "", am.group(1))
+    num = re.sub(r"\s+", " ", am.group(2)).strip()
+    key = kind + re.sub(r"[\s<].*$", "", re.sub(r"\s+", "", num).replace("서식", "")) if num else kind
+    return {"key": key, "kind": kind, "num": num, "rest": am.group(3), "tbl": tbl}
+
+
+def _junk(b):
+    t = b.get("p")
+    if t is None:
+        return False
+    t = t.strip()
+    return len(t) < 3 or t[0] in "[〔【"
+
+
+def find_annex_list(blocks):
+    """부칙 뒤 '별표·별지 목록' 범위를 찾음.
+    목록은 [별표]/[별지] 줄만 이어지다가, 같은 번호가 다시 나오는 곳(실제 별표 시작)에서 끝난다."""
+    f = next((i for i, b in enumerate(blocks) if b.get("p") and marker_of(b)), None)
+    if f is None:
+        return set()
+    seen, mk, L, by_repeat = set(), [], len(blocks), False
+    for j in range(f, len(blocks)):
+        m = marker_of(blocks[j])
+        if m:
+            if m["key"] in seen:
+                L, by_repeat = j, True
+                break
+            seen.add(m["key"])
+            mk.append(j)
+            continue
+        if _junk(blocks[j]):
+            continue
+        L = j
+        break
+    if not by_repeat and L < len(blocks):
+        later = any((m := marker_of(blocks[k])) and m["key"] in seen for k in range(L, len(blocks)))
+        if not later:
+            # 번호가 다시 안 나오면: 마지막 줄은 바로 뒤 내용을 가진 실제 서식
+            if len(mk) < 3:
+                return set()
+            L = mk[-1]
+    if len(mk) < 2:
+        return set()
+    return set(range(f, L))
+
+
 def sectionize(blocks):
-    """블록을 조문 단위 섹션으로 나눈다. [별표]/[별지] 부터는 서식 하나가 한 섹션."""
+    """블록을 조문 단위 섹션으로 나눈다.
+    [별표]/[별지] 부터는: 목록 한 묶음 → 실제 별표·별지 하나가 한 섹션 (삭제된 것은 작은 줄로)."""
     secs, cur, in_addenda, addenda_n = [], None, False, 0
     chapter, chap = "", []
     in_annex, want_title = False, False
+    list_idx = find_annex_list(blocks)
+    # 목록 순서: 번호를 못 읽은 실제 서식에 목록의 다음 이름을 붙이는 데 씀
+    entries = []
+    for i in sorted(list_idx):
+        m = marker_of(blocks[i])
+        if m and blocks[i].get("p"):
+            ti = annex_title(m["rest"])
+            entries.append((m["key"], f"{m['kind']} {m['num']}".strip(), ti, ti.startswith("삭제")))
+    ptr = 0
+
+    def seek(key):
+        nonlocal ptr
+        for k, e in enumerate(entries):
+            if e[0] == key:
+                ptr = k + 1
+                return
+
+    def next_entry():
+        nonlocal ptr
+        while ptr < len(entries) and entries[ptr][3]:
+            ptr += 1
+        if ptr < len(entries):
+            ptr += 1
+            return entries[ptr - 1]
+        return None
+
+    def new_unnamed():
+        e = next_entry()
+        return new(e[1] if e else "별표·별지", e[2] if e else "", "annex")
 
     def new(label, heading, kind):
         nonlocal cur
         cur = {"label": label, "heading": heading, "kind": kind, "chapter": chapter, "blocks": []}
         secs.append(cur)
+        return cur
 
     new("머리말", "", "head")
-    for b in blocks:
+    for i, b in enumerate(blocks):
         t = b.get("p")
+        if i in list_idx:
+            if not cur.get("_list"):
+                in_annex, chapter = True, ""
+                new("별표·별지", "목록", "annex")["_list"] = True
+            m = marker_of(b)
+            if t and m and annex_title(m["rest"]).startswith("삭제"):
+                cur["blocks"].append(dict(b, fd=1))
+            elif t:
+                cur["blocks"].append({"p": t, "fl": 1})
+            else:
+                cur["blocks"].append(b)
+            continue
         if want_title and t and len(t.strip()) < 2:
             continue  # 'ㄹ' 같은 잡글자는 버리고 계속 제목을 찾음
         if want_title:
@@ -576,34 +684,37 @@ def sectionize(blocks):
             if is_title_line(t):
                 cur["heading"] = annex_title(t) or t
                 b = dict(b, ft=1)
-            elif "table" in b and b["table"] and b["table"][0]:
-                c0 = b["table"][0][0]
-                if c0.get("big") or (c0.get("lb") or "").startswith("1"):
-                    cur["heading"] = c0["t"].split("\n", 1)[0]
-        if t:
-            first = t.split("\n", 1)[0]
-            am = ANNEX_RE.match(first) if len(first) < 400 else None
-            if am:
-                kind = re.sub(r"\s+", "", am.group(1))
-                label = f"{kind} {am.group(2).strip()}".strip()
-                rest = am.group(3)
-                title = annex_title(rest)
-                if title.startswith("삭제"):
-                    if not in_annex:  # 부칙 뒤 첫 줄이 삭제된 별표여도 여기서부터 별표·별지 영역
-                        in_annex = True
-                        chapter = ""
-                        new("별표·별지", "목록", "annex")
-                    cur["blocks"].append(dict(b, fd=1))
-                    continue
-                in_annex = True
-                chapter = ""
-                new(label, title, "annex")
+        if in_annex and t and LOST_RE.match(t):
+            # '[별지 제N호 서식]' 글자가 빠지고 '[' 나 '[<개정 …>' 만 남은 줄 → 목록 순서로 이름을 붙임
+            new_unnamed()
+            if t.strip("[ "):
+                cur["blocks"].append({"p": t.strip("[ "), "fd": 1})
+            want_title = not cur["heading"]
+            continue
+        m = marker_of(b)
+        if m and (in_annex or not m["tbl"]):
+            label = f"{m['kind']} {m['num']}".strip()
+            title = annex_title(m["rest"])
+            seek(m["key"])
+            in_annex, chapter = True, ""
+            if title.startswith("삭제"):
+                if not cur.get("_del"):
+                    new(label, "삭제", "annex")["_del"] = True
+                cur["blocks"].append(dict(b, fd=1))
+                continue
+            new(label, "" if m["tbl"] else title, "annex")["_key"] = m["key"]
+            if not m["tbl"]:
                 b = dict(b, fm=1)
                 if not title:
                     want_title = True
-            elif in_annex:
-                pass
-            elif ADDENDA_RE.match(first) and len(first) < 40:
+            cur["blocks"].append(b)
+            continue
+        if cur.get("_del") and not _junk(b):
+            # 삭제 줄들 뒤에 번호를 못 읽은 실제 별표가 이어지는 경우
+            new_unnamed()
+        if t and not in_annex:
+            first = t.split("\n", 1)[0]
+            if ADDENDA_RE.match(first) and len(first) < 40:
                 in_addenda = True
                 addenda_n += 1
                 chapter = first
@@ -625,22 +736,15 @@ def sectionize(blocks):
                     new(label, (m.group(3) or "").strip(), "article")
         cur["blocks"].append(b)
     fill_annex_titles(secs)
-    out = []
+    names = {e[0]: e[2] for e in entries if e[2] and not e[3]}
     for s in secs:
-        if not s["blocks"] and s["kind"] == "head":
-            continue
-        # 본문 없이 제목 줄만 있는 [별표]/[별지] 는 목록 줄 → 하나의 '별표·별지 목록' 으로 모음
-        if s["kind"] == "annex" and all(b.get("fm") or b.get("fd") for b in s["blocks"]):
-            lines = [b if b.get("fd") else {"p": b["p"], "fl": 1} for b in s["blocks"]]
-            if out and out[-1].get("_list"):
-                out[-1]["blocks"].extend(lines)
-            else:
-                out.append({"label": "별표·별지", "heading": "목록", "kind": "annex", "chapter": "",
-                            "blocks": lines, "_list": True})
-            continue
-        out.append(s)
+        if s["kind"] == "annex" and not s["heading"] and s.get("_key") in names:
+            s["heading"] = names[s["_key"]]
+    out = [s for s in secs if s["blocks"] or s["kind"] != "head"]
     for s in out:
         s.pop("_list", None)
+        s.pop("_del", None)
+        s.pop("_key", None)
     for i, s in enumerate(out):
         s["id"] = f"s{i}"
     return out
