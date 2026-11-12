@@ -232,7 +232,16 @@
       if (m) return `<p><strong>${highlight(m[1], res)}</strong>${highlight(b.p.slice(m[1].length), res)}</p>`;
       return `<p>${highlight(b.p, res)}</p>`;
     }
-    return `<div class="tw"><table>${b.table.map((row) => `<tr>${row.map((c) => `<${c.h ? "th" : "td"}${c.c ? ` colspan="${c.c}"` : ""}${c.r ? ` rowspan="${c.r}"` : ""}>${highlight(c.t, res)}</${c.h ? "th" : "td"}>`).join("")}</tr>`).join("")}</table></div>`;
+    const AL = { c: "center", r: "right", l: "left" };
+    const cellBody = (c) => (c.la || c.lb)
+      ? c.t.split("\n").map((ln, i) => `<div${c.lb && c.lb[i] === "1" ? ' class="big"' : ""}${c.la ? ` style="text-align:${AL[c.la[i]] || "left"}"` : ""}>${highlight(ln, res) || "&nbsp;"}</div>`).join("")
+      : highlight(c.t, res);
+    const cls = (c) => [c.a ? `a${c.a}` : "", c.big ? "big" : ""].filter(Boolean).join(" ");
+    let w = b.w;
+    if (w) { const fl = Math.min(13, 60 / w.length); w = w.map((x) => Math.max(x, fl)); const t = w.reduce((a, x) => a + x, 0); w = w.map((x) => +(x * 100 / t).toFixed(1)); }
+    const fw = w ? ` class="fx" style="min-width:${w.length * 56}px"` : "";
+    const cg = w ? `<colgroup>${w.map((x) => `<col style="width:${x}%">`).join("")}</colgroup>` : "";
+    return `<div class="tw"><table${fw}>${cg}${b.table.map((row) => `<tr>${row.map((c) => { const k = cls(c); return `<${c.h ? "th" : "td"}${k ? ` class="${k}"` : ""}${c.c ? ` colspan="${c.c}"` : ""}${c.r ? ` rowspan="${c.r}"` : ""}>${cellBody(c)}</${c.h ? "th" : "td"}>`; }).join("")}</tr>`).join("")}</table></div>`;
   }
 
   async function renderRule(id, sid, params) {

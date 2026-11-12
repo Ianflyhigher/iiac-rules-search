@@ -170,3 +170,10 @@ details.toc { margin: 6px 0 8px; padding: 8px 12px; }
 .fnote { font-size: 12px; padding: 6px 10px; margin: 4px 0 0; }
 .footrow { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; padding-bottom: 64px; font-size: 12px; }
 .footrow a { color: var(--accent); text-decoration: none; }
+.tw table.fx { table-layout: fixed; }
+.tw table.fx td, .tw table.fx th { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; vertical-align: middle; }
+.tw td.ac, .tw th.ac { text-align: center; }
+.tw td.ar, .tw th.ar { text-align: right; }
+.tw td.big { font-weight: 700; font-size: 16px; }
+.tw td div.big { font-weight: 700; font-size: 16px; }
+.tw table.fx td, .tw table.fx th { padding: 5px 5px; }

@@ -30,7 +30,12 @@ WS = re.compile(r"[ \t 　]+")
 def clean(s):
     s = s.replace("\r", "").replace("​", "")
     lines = [WS.sub(" ", ln).strip() for ln in s.split("\n")]
+    lines = [ln.replace(" ", "") if SPACED.match(ln) else ln for ln in lines]
     return "\n".join(ln for ln in lines if ln)
+
+
+# "재 직 증 명 서", "본    적" 처럼 글자 사이를 띄워 쓴 줄 → 붙여서 (검색도 되게)
+SPACED = re.compile(r"^[가-힣]( [가-힣])+$")
 
 
 # ---------- HWP (v5) via pyhwp ----------
@@ -44,18 +49,138 @@ def hwp_blocks(path):
                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         with open(out, "rb") as f:
             doc = lhtml.fromstring(f.read())
+        css = ""
+        try:
+            cssf = os.path.join(tmp, "o.css")
+            subprocess.run([exe, "--css", "--output", cssf, path], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            with open(cssf, encoding="utf-8", errors="ignore") as f:
+                css = f.read()
+        except Exception:
+            pass
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    global HWP_STYLE
+    HWP_STYLE = parse_hwp_css(css)
     return html_blocks(doc)
 
 
-def cell_text(td):
-    parts = []
+HWP_STYLE = ({}, {})
+
+
+def parse_hwp_css(css):
+    """parashape-N -> 정렬(l/c/r), charshape-N -> 글자크기(pt)"""
+    align, size = {}, {}
+    for m in re.finditer(r"p\.parashape-(\d+)\s*\{([^}]*)\}", css):
+        a = re.search(r"text-align:\s*(\w+)", m.group(2))
+        if a:
+            align[m.group(1)] = {"center": "c", "right": "r"}.get(a.group(1), "l")
+    for m in re.finditer(r"span\.charshape-(\d+)\s*\{([^}]*)\}", css):
+        z = re.search(r"font-size:\s*([\d.]+)pt", m.group(2))
+        if z:
+            size[m.group(1)] = float(z.group(1))
+    return align, size
+
+
+def _cls_num(el, prefix):
+    for c in (el.get("class") or "").split():
+        if c.startswith(prefix):
+            return c[len(prefix):]
+    return None
+
+
+def finish_cell(cell, lines):
+    """lines: [(text, align, size)] -> cell 에 t / a / la / big 채움"""
+    out = []
+    for t, a, z in lines:
+        for ln in clean(t).split("\n"):
+            if ln:
+                out.append((ln, a or "l", z or 0))
+    cell["t"] = "\n".join(x[0] for x in out)
+    al = [x[1] for x in out]
+    if al and len(set(al)) == 1:
+        if al[0] != "l":
+            cell["a"] = al[0]
+    elif al:
+        cell["la"] = "".join(al)
+    bg = ["1" if x[2] >= 14 else "0" for x in out]
+    if bg and all(b == "1" for b in bg):
+        cell["big"] = 1
+    elif "1" in bg:
+        cell["lb"] = "".join(bg)
+    return cell
+
+
+def col_widths(cells, ncol):
+    """cells: [(col, span, width)] -> 각 열 너비 % (정수 리스트)"""
+    if ncol <= 0:
+        return None
+    w = [None] * ncol
+    for col, sp, wd in cells:
+        if sp == 1 and col < ncol and wd and w[col] is None:
+            w[col] = wd
+    for _ in range(4):
+        for col, sp, wd in cells:
+            idx = [i for i in range(col, min(col + sp, ncol))]
+            unk = [i for i in idx if w[i] is None]
+            if len(unk) == 1 and wd:
+                rest = wd - sum(w[i] for i in idx if w[i] is not None)
+                if rest > 0:
+                    w[unk[0]] = rest
+    for col, sp, wd in cells:
+        idx = [i for i in range(col, min(col + sp, ncol))]
+        unk = [i for i in idx if w[i] is None]
+        if unk and wd:
+            rest = wd - sum(w[i] for i in idx if w[i] is not None)
+            for i in unk:
+                w[i] = max(rest, 0) / len(unk) or None
+    known = [x for x in w if x]
+    if not known:
+        return None
+    avg = sum(known) / len(known)
+    w = [x if x else avg for x in w]
+    tot = sum(w)
+    return [max(1, round(x * 100 / tot)) for x in w]
+
+
+def grid_place(rows_spans):
+    """rows_spans: [[(cs, rs)]] -> 각 셀의 시작 열 번호 [[col]] 과 전체 열 수"""
+    occ = {}
+    cols = []
+    ncol = 0
+    for ri, row in enumerate(rows_spans):
+        c = 0
+        rc = []
+        for cs, rs in row:
+            while occ.get((ri, c)):
+                c += 1
+            rc.append(c)
+            for dr in range(rs):
+                for dc in range(cs):
+                    occ[(ri + dr, c + dc)] = True
+            c += cs
+            ncol = max(ncol, c)
+        cols.append(rc)
+    return cols, ncol
+
+
+def cell_lines(td):
+    align, size = HWP_STYLE
+    lines = []
     for p in td.iter("p"):
         if any(a.tag == "td" and a is not td for a in p.iterancestors()):
             continue
-        parts.append(text_no_tables(p))
-    return clean("\n".join(parts)) if parts else clean(td.text_content())
+        a = align.get(_cls_num(p, "parashape-"))
+        z = max([size.get(_cls_num(sp, "charshape-"), 0) for sp in p.iter("span")] or [0])
+        lines.append((text_no_tables(p), a, z))
+    if not lines:
+        lines.append((td.text_content(), None, 0))
+    return lines
+
+
+def _mm(style):
+    m = re.search(r"width:\s*([\d.]+)mm", style or "")
+    return float(m.group(1)) if m else None
 
 
 def text_no_tables(el):
@@ -76,25 +201,38 @@ def text_no_tables(el):
 
 
 def table_rows(tbl):
-    rows = []
+    rows, spans, widths = [], [], []
     for tr in tbl.iter("tr"):
         if next(tr.iterancestors("table")) is not tbl:
             continue
-        row = []
+        row, sp, wd = [], [], []
         for td in tr:
             if td.tag not in ("td", "th"):
                 continue
             cs = int(td.get("colspan", "1") or 1)
             rs = int(td.get("rowspan", "1") or 1)
-            cell = {"t": cell_text(td)}
+            cell = finish_cell({}, cell_lines(td))
             if cs > 1:
                 cell["c"] = cs
             if rs > 1:
                 cell["r"] = rs
             row.append(cell)
+            sp.append((cs, rs))
+            wd.append(_mm(td.get("style")))
         if row:
             rows.append(row)
-    return rows
+            spans.append(sp)
+            widths.append(wd)
+    cols, ncol = grid_place(spans)
+    cells = [(cols[i][j], spans[i][j][0], widths[i][j]) for i in range(len(rows)) for j in range(len(rows[i]))]
+    return rows, col_widths(cells, ncol)
+
+
+def table_block(rows, w):
+    b = {"table": rows}
+    if w and len(w) > 1:
+        b["w"] = w
+    return b
 
 
 def html_blocks(doc):
@@ -109,38 +247,101 @@ def html_blocks(doc):
         for tbl in p.iter("table"):
             if any(a.tag == "table" for a in tbl.iterancestors()):
                 continue
-            rows = table_rows(tbl)
+            rows, w = table_rows(tbl)
             if rows:
-                blocks.append({"table": rows})
+                blocks.append(table_block(rows, w))
     return blocks
 
 
 # ---------- HWPX ----------
 
+def hwpx_styles(z):
+    align, size = {}, {}
+    try:
+        root = etree.fromstring(z.read("Contents/header.xml"))
+    except Exception:
+        return align, size
+    for pp in root.iter("{*}paraPr"):
+        a = next(pp.iter("{*}align"), None)
+        if a is not None:
+            align[pp.get("id")] = {"CENTER": "c", "RIGHT": "r"}.get(a.get("horizontal"), "l")
+    for cp in root.iter("{*}charPr"):
+        try:
+            size[cp.get("id")] = int(cp.get("height")) / 100
+        except (TypeError, ValueError):
+            pass
+    return align, size
+
+
+def _ln(e):
+    return etree.QName(e).localname
+
+
+def _kids(e, name):
+    return [c for c in e if isinstance(c.tag, str) and _ln(c) == name]
+
+
+def _ptext(p):
+    return "".join(t.text or "" for t in p.iter("{*}t") if _owner_p(t) is p)
+
+
+def hwpx_table(tbl, st):
+    align, size = st
+    rows, cells = [], []
+    ncol = int(tbl.get("colCnt") or 0)
+    for tr in _kids(tbl, "tr"):
+        row = []
+        for tc in _kids(tr, "tc"):
+            lines = []
+            for sub in _kids(tc, "subList"):
+                for p in _kids(sub, "p"):
+                    zs = [size.get(r.get("charPrIDRef"), 0) for r in _kids(p, "run") if any(True for _ in r.iter("{*}t"))]
+                    lines.append((_ptext(p), align.get(p.get("paraPrIDRef")), max(zs or [0])))
+                    for nt in p.iter("{*}tbl"):
+                        if next((a for a in nt.iterancestors() if _ln(a) == "tbl"), None) is not tbl:
+                            continue
+                        for ntr in _kids(nt, "tr"):
+                            lines.append((" | ".join(clean("\n".join(_ptext(q) for q in tc2.iter("{*}p"))).replace("\n", " ")
+                                                     for tc2 in _kids(ntr, "tc")), None, 0))
+            cell = finish_cell({}, lines)
+            span = next(tc.iter("{*}cellSpan"), None)
+            addr = next(tc.iter("{*}cellAddr"), None)
+            sz = next(tc.iter("{*}cellSz"), None)
+            cs = int(span.get("colSpan", 1)) if span is not None else 1
+            rs = int(span.get("rowSpan", 1)) if span is not None else 1
+            if cs > 1:
+                cell["c"] = cs
+            if rs > 1:
+                cell["r"] = rs
+            col = int(addr.get("colAddr", 0)) if addr is not None else 0
+            wd = float(sz.get("width", 0)) if sz is not None else 0
+            cells.append((col, cs, wd))
+            ncol = max(ncol, col + cs)
+            row.append(cell)
+        if row:
+            rows.append(row)
+    return rows, col_widths(cells, ncol)
+
+
 def hwpx_blocks(data):
     z = zipfile.ZipFile(io.BytesIO(data))
+    st = hwpx_styles(z)
     secs = sorted(n for n in z.namelist() if re.match(r"Contents/section\d+\.xml", n))
     blocks = []
     for s in secs:
         root = etree.fromstring(z.read(s))
         for p in root.iter("{*}p"):
-            if any(etree.QName(a).localname == "tbl" for a in p.iterancestors()):
+            if any(_ln(a) == "tbl" for a in p.iterancestors()):
                 continue
-            txt = "".join(t.text or "" for t in p.iter("{*}t") if _owner_p(t) is p)
+            txt = _ptext(p)
             if clean(txt):
                 blocks.append({"p": clean(txt)})
             for tbl in p.iter("{*}tbl"):
-                if any(etree.QName(a).localname == "tbl" for a in tbl.iterancestors()):
+                if any(_ln(a) == "tbl" for a in tbl.iterancestors()):
                     continue
-                rows = []
-                for tr in tbl.iter("{*}tr"):
-                    row = []
-                    for tc in tr.iter("{*}tc"):
-                        row.append({"t": clean("\n".join("".join(t.text or "" for t in pp.iter("{*}t"))
-                                                         for pp in tc.iter("{*}p")))})
-                    rows.append(row)
+                rows, w = hwpx_table(tbl, st)
                 if rows:
-                    blocks.append({"table": rows})
+                    blocks.append(table_block(rows, w))
     return blocks
 
 
