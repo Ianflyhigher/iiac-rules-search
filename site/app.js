@@ -197,7 +197,7 @@
     view.innerHTML = `${jg}
       <div class="summary">“${esc(q)}” 사규 ${results.length}건 · 조문 ${nArts}곳</div>
       ${results.map((r, i) => card(r, res, qp, i)).join("")}
-      ${relList.length ? `<div class="label">관련 사규 (서로 인용하는 규정)</div><div class="chips">${relList.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}`;
+`;
     view.querySelectorAll(".more").forEach((b) => b.addEventListener("click", () => {
       const box = $(`#more-${b.dataset.i}`); box.hidden = false; b.remove();
     }));
@@ -256,7 +256,7 @@
         chapHtml = `<div class="chap">${esc(s.chapter)}</div>`;
       }
       if (s.kind !== "head") toc.push(`<li><a href="#/r/${id}/${s.id}${q ? `?q=${encodeURIComponent(q)}` : ""}">${esc(s.label)}${s.heading ? ` ${esc(s.heading)}` : ""}</a></li>`);
-      return `${chapHtml}<section class="sec" id="${s.id}">${s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res)).join("")}</section>`;
+      return `${chapHtml}<section class="sec${s.kind === "head" ? " head" : ""}" id="${s.id}">${s.blocks.filter((b) => !(b.p && s.chapter && b.p === s.chapter && s.kind !== "addenda")).map((b) => blockHtml(b, res)).join("")}</section>`;
     });
     const dl = `https://www.alio.go.kr/download/rulefiledown.json?fileNo=${d.fileNo}`;
     view.innerHTML = `
@@ -269,8 +269,8 @@
           ${q ? `<a class="btn" href="#/s?q=${encodeURIComponent(q)}">← 검색 결과</a>` : ""}
         </div>
         ${d.attachments.length ? `<div class="note">함께 올라온 파일: ${d.attachments.map(esc).join(", ")} (원문 파일에 포함)</div>` : ""}
-        ${refs.length ? `<div class="label">이 사규가 인용하는 사규</div><div class="chips">${refs.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
-        ${refBy.length ? `<div class="label">이 사규를 인용하는 사규</div><div class="chips">${refBy.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
+        ${refs.length ? `<div class="label rl">이 사규가 인용하는 사규</div><div class="chips sm">${refs.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
+        ${refBy.length ? `<div class="label rl">이 사규를 인용하는 사규</div><div class="chips sm">${refBy.map((r) => `<a class="chip" href="#/r/${r.id}">${esc(r.title)}</a>`).join("")}</div>` : ""}
       </div>
       <div class="findbar"><span class="ftitle">${esc(d.title)}</span><input id="find" type="search" placeholder="이 사규 안에서 찾기" value="${esc(q)}" enterkeyhint="search"><span class="cnt" id="findCnt"></span><button id="prev" aria-label="이전">▲</button><button id="next" aria-label="다음">▼</button></div>
       ${toc.length > 1 ? `<details class="toc"><summary>목차 (${d.sections.filter((s) => s.kind !== "head").length})</summary><ol>${toc.join("")}</ol></details>` : ""}

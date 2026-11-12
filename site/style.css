@@ -147,3 +147,19 @@ details.toc summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sec-jg + .chips .chip { background: #3a2d12; color: #ffd58a; border-color: #6b4f1a; } }
 .jg .cat { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 0 6px; margin-left: 4px; vertical-align: 1px; }
 .jg-altbox .t small { font-weight: 400; font-size: 11.5px; color: var(--muted); margin-left: 4px; }
+
+/* 상세 화면: 빈 공간 줄이기 */
+.dhead h2 { margin: 0 0 2px; }
+.dhead .links { margin-top: 8px; }
+.dhead .note { margin: 8px 0 0; padding: 7px 11px; font-size: 12.5px; }
+.label.rl { margin: 10px 0 4px; font-size: 12.5px; }
+.chips.sm { gap: 4px; margin: 0 0 2px; }
+.chips.sm .chip { font-size: 13px; padding: 3px 9px; }
+.findbar { padding: 6px 0; gap: 5px; }
+.findbar .ftitle { font-size: 12px; }
+details.toc { margin: 6px 0 8px; padding: 8px 12px; }
+/* 사규 첫머리(제목·제개정 정보) */
+.sec.head { text-align: center; padding: 12px 0 10px; }
+.sec.head p { white-space: normal; }
+.sec.head p:first-child { font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+.sec.head p:not(:first-child) { font-size: 13.5px; color: var(--muted); }
