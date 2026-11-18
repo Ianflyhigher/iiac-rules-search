@@ -385,13 +385,13 @@ def hwpx_blocks(data):
     for s in secs:
         root = etree.fromstring(z.read(s))
         for p in root.iter("{*}p"):
-            if any(_ln(a) == "tbl" for a in p.iterancestors()):
-                continue
+            if any(_ln(a) in ("tbl", "header", "footer") for a in p.iterancestors()):
+                continue  # 표 안 문단은 표에서, 쪽 머리말·꼬리말(예: 매 쪽 위의 사규 이름)은 본문이 아님
             txt = _ptext(p)
             if clean(txt):
                 blocks.append({"p": clean(txt)})
             for tbl in p.iter("{*}tbl"):
-                if any(_ln(a) == "tbl" for a in tbl.iterancestors()):
+                if any(_ln(a) in ("tbl", "header", "footer") for a in tbl.iterancestors()):
                     continue
                 rows, w = hwpx_table(tbl, st)
                 if rows:
@@ -796,9 +796,74 @@ def sectionize(blocks):
     return out
 
 
+# ---------- 머리 부분(제목 아래 시행·개정 정보) ----------
+# 정상: '[시행 2024. 12. 16.] [규정 제588호., 2024. 12. 10. 일부개정]' 한 줄.
+# 옛 서식: 제목 뒤 '〔〕' + 두 줄 표('2020. 4. 21.' / '지침 제130호') + '개정 2006. 1. 9. 규정 제155호' 줄들,
+#          또는 표 한 칸에 제목·날짜·번호가 함께 들어 있음.
+HIST_DATE = r"(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*\.?"
+HIST_RE = re.compile(r"^\s*(제정|개정|전문개정|전부개정|사규명\s*변경\s*및\s*개정)?\s*" + HIST_DATE +
+                     r"\s*((?:규정|지침|세칙|시행세칙|예규|내규)\s*제\s*\d+\s*호)\.?\s*$")
+EMPTY_BR = re.compile(r"[〔\[]\s*[〕\]]")
+
+
+def normalize_head(secs, rule=None):
+    """옛 서식 머리 부분을 '[규정 제N호, YYYY. M. D. 제정/일부개정]' 한 줄로 바꾸고,
+    제·개정 연혁이 여러 줄이면 접어 두는 '연혁' 블록으로 보관한다(글자는 그대로 남김)."""
+    head = secs[0] if secs and secs[0]["kind"] == "head" else None
+    if not head or not head["blocks"]:
+        return None
+    if any(b.get("p", "").lstrip().startswith("[시행") for b in head["blocks"]):
+        return None
+    title, lines, rest = None, [], []
+    for b in head["blocks"]:
+        if "table" in b:
+            cells = [ln for row in b["table"] for c in row for ln in c["t"].split("\n") if ln.strip()]
+            if cells and title is None and not HIST_RE.match(cells[0]) and EMPTY_BR.search(cells[0]):
+                title = EMPTY_BR.sub("", cells[0]).strip()  # 표 첫 칸에 제목까지 든 경우
+                cells = cells[1:]
+            joined = " ".join(cells)
+            if HIST_RE.match(joined):
+                lines.append(joined)
+                continue
+            rest.append(b)
+            continue
+        t = b.get("p", "")
+        if not EMPTY_BR.sub("", t).strip():
+            continue  # 빈 괄호 '〔〕' 만 있는 줄
+        if title is None and not lines and not HIST_RE.match(t):
+            title = EMPTY_BR.sub("", t).strip()
+        elif HIST_RE.match(t):
+            lines.append(t.strip())
+        else:
+            rest.append(b)
+    if not lines:
+        return None
+    hist = []
+    for i, ln in enumerate(lines):
+        m = HIST_RE.match(ln)
+        if m.group(1):
+            kind = re.sub(r"\s+", " ", m.group(1))
+        elif i == 0 and len(lines) == 1 and "개정" in (rule or {}).get("fileName", ""):
+            kind = "개정"  # 날짜·번호만 있고 파일 이름이 '…개정'인 경우: 제정인지 알 수 없으니 '개정'으로만
+        else:
+            kind = "제정" if i == 0 else "개정"
+        date = f"{int(m.group(2))}. {int(m.group(3))}. {int(m.group(4))}."
+        no = re.sub(r"\s+", " ", re.sub(r"제\s*(\d+)\s*호", r"제\1호", m.group(5)))
+        hist.append((kind, date, no))
+    kind, date, no = hist[-1]
+    word = {"제정": "제정", "전문개정": "전부개정", "전부개정": "전부개정"}.get(kind, "일부개정" if kind != "개정" or len(hist) > 1 else "개정")
+    blocks = ([{"p": title}] if title else []) + [{"p": f"[{no}, {date} {word}]"}]
+    if len(hist) > 1:
+        blocks.append({"hist": [f"{k} {d} {n}" for k, d, n in hist]})
+    head["blocks"] = blocks + rest
+    return blocks[1 if title else 0]["p"]
+
+
 def block_text(b):
     if "p" in b:
         return b["p"]
+    if "hist" in b:
+        return "\n".join(b["hist"])
     return "\n".join(" | ".join(c["t"] for c in row) for row in b["table"]
                      if not all(c.get("h") for c in row))
 
@@ -815,7 +880,10 @@ def _raw_text(name, data):
         out = []
         for n in z.namelist():
             if re.match(r"Contents/section\d+\.xml", n):
-                out.append("".join(etree.fromstring(z.read(n)).itertext()))
+                root = etree.fromstring(z.read(n))
+                for hf in [e for e in root.iter("{*}header", "{*}footer")]:
+                    hf.getparent().remove(hf)  # 쪽 머리말·꼬리말은 본문이 아님
+                out.append("".join(root.itertext()))
         return PIC_ALT.sub("", "".join(out))
     if ext == ".hwp" and _md5(data) in HWP_FULLTEXT:
         # 한글 → HTML 변환 결과 '전체'(문단·표 구분 없이)의 글자. 블록 읽기에서 빠진 것을 잡아냄
@@ -871,6 +939,9 @@ def main():
             failed.append(r["title"])
             blocks = []
         secs = sectionize(blocks)
+        fixed_head = normalize_head(secs, r)
+        if fixed_head:
+            print(f"  머리 정리: {r['title']} → {fixed_head}")
         attachments = apply_override(r, attachments)
         for name, ab in attachments:
             if isinstance(ab, dict) and "approval" in ab:
