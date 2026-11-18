@@ -240,10 +240,7 @@
 
   const ART_HEAD = /^(제\s*\d+\s*조(?:\s*의\s*\d+)?(?:\s*\([^)]*\))?)/;
   function blockHtml(b, res, kind) {
-    if (b.hist) {
-      const on = res && b.hist.some((ln) => highlight(ln, res) !== esc(ln));
-      return `<details class="hist"${on ? " open" : ""}><summary>제·개정 연혁 (${b.hist.length})</summary>${b.hist.map((ln) => `<div>${highlight(ln, res)}</div>`).join("")}</details>`;
-    }
+    if (b.hist) return "";  // 제·개정 연혁은 화면에 보이지 않음(데이터에는 남겨 원문 대조용)
     if (b.p) {
       if (b.fd) return `<p class="fdel">${highlight(b.p, res)}</p>`;
       if (b.fl) return `<p class="flist">${highlight(b.p, res)}</p>`;
