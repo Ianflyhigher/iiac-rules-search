@@ -1283,11 +1283,11 @@
    "id": "44192",
    "title": "위탁교육운영지침",
    "category": "기타",
-   "enacted": "2025.08.26",
-   "modified": "2025.08.28",
-   "fileNo": 220372,
-   "fileName": "위탁교육운영지침(2025년도 8월 26일 개정).hwp",
-   "file": "44192/220372.hwp",
+   "enacted": "2026.11.11",
+   "modified": "2026.11.17",
+   "fileNo": 244289,
+   "fileName": "위탁교육운영지침(2026년도 11월 11일 개정).hwp",
+   "file": "44192/244289.hwp",
    "extras": [],
    "history": [
     {
@@ -1305,6 +1305,10 @@
     {
      "fileNo": 220372,
      "name": "위탁교육운영지침(2025년도 8월 26일 개정).hwp"
+    },
+    {
+     "fileNo": 244289,
+     "name": "위탁교육운영지침(2026년도 11월 11일 개정).hwp"
     }
    ],
    "url": "https://www.alio.go.kr/item/itemBoard21110.do?disclosureNo=&apbaId=C0105&nowcode=21110&reportFormNo=21110&table_name=COMM_RULE&idx_name=RULE_NO&idx=44192&reportGbn=N&bid_type=K1400"
@@ -2540,5 +2544,6 @@
    "url": "https://www.alio.go.kr/item/itemBoard21110.do?disclosureNo=&apbaId=C0105&nowcode=21110&reportFormNo=21110&table_name=COMM_RULE&idx_name=RULE_NO&idx=22346&reportGbn=N&bid_type=K1400"
   }
  ],
- "collectedAt": "2026-11-06T15:59:55+09:00"
+ "collectedAt": "2026-11-20T18:53:15+09:00",
+ "checkedAt": "2026-11-20T18:57:47+09:00"
 }

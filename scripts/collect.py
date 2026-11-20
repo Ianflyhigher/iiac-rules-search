@@ -114,10 +114,11 @@ def main():
 
     os.makedirs(RAW, exist_ok=True)
     man_path = os.path.join(RAW, "manifest.json")
-    old = {}
+    old, man_old = {}, {}
     if os.path.exists(man_path):
         with open(man_path, encoding="utf-8") as f:
-            old = {r["id"]: r for r in json.load(f)["rules"]}
+            man_old = json.load(f)
+        old = {r["id"]: r for r in man_old["rules"]}
 
     items = list_rules()
     print(f"목록 {len(items)}건")
@@ -179,10 +180,12 @@ def main():
            "rules": rules}
     meta_changed = json.dumps([old.get(r["id"], {}) for r in rules], sort_keys=True) != \
         json.dumps(rules, sort_keys=True)
-    if changed or meta_changed or not old:
-        out["collectedAt"] = datetime.now(KST).isoformat(timespec="seconds")
-        with open(man_path, "w", encoding="utf-8") as f:
-            json.dump(out, f, ensure_ascii=False, indent=1)
+    now = datetime.now(KST).isoformat(timespec="seconds")
+    # collectedAt = 마지막으로 개정분을 반영한 때, checkedAt = 알리오와 마지막으로 대조한 때(변경 없어도 매번 갱신)
+    out["collectedAt"] = now if (changed or meta_changed or not old) else man_old.get("collectedAt", now)
+    out["checkedAt"] = now
+    with open(man_path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=1)
     print(f"완료: {len(rules)}건, 새 파일 {len(changed)}건")
     for c in changed:
         print("  -", c)
@@ -194,7 +197,8 @@ def main():
         git("pull", "--rebase", "--autostash")
         git("add", "raw")
         if git("status", "--porcelain", "raw").strip():
-            msg = f"사규 갱신 {datetime.now(KST):%Y-%m-%d}" + (f": {', '.join(changed[:5])}" if changed else "")
+            msg = (f"사규 갱신 {datetime.now(KST):%Y-%m-%d}: {', '.join(changed[:5])}" if changed
+                   else f"사규 확인 {datetime.now(KST):%Y-%m-%d} (변경 없음)")
             git("commit", "-m", msg)
             git("push")
             print("push 완료")

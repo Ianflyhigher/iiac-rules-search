@@ -1017,6 +1017,7 @@ def main():
 
     with open(os.path.join(OUT, "index.json"), "w", encoding="utf-8") as f:
         json.dump({"source": man["source"], "collectedAt": man.get("collectedAt", ""),
+                   "checkedAt": man.get("checkedAt", man.get("collectedAt", "")),
                    "rules": index}, f, ensure_ascii=False, separators=(",", ":"))
     with open(os.path.join(OUT, "check.json"), "w", encoding="utf-8") as f:
         json.dump(checks, f, ensure_ascii=False, indent=0)

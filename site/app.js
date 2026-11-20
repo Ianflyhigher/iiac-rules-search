@@ -382,8 +382,8 @@
   fetch("data/index.json").then((r) => r.json()).then((db) => {
     DB = db;
     byId = Object.fromEntries(db.rules.map((r) => [r.id, r]));
-    const d = (db.collectedAt || "").slice(0, 10);
-    $("#sub").textContent = `${db.rules.length}개 사규${d ? ` · ${d} 기준` : ""}`;
+    const d = (db.checkedAt || db.collectedAt || "").slice(0, 10);
+    $("#sub").textContent = `${db.rules.length}개 사규${d ? ` · ${d} 최신 확인` : ""}`;
     if (db.source) $("#srcLink").href = db.source;
     route();
   }).catch(() => { view.innerHTML = `<p class="empty">데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>`; });
